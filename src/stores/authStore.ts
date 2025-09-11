@@ -74,6 +74,11 @@ export const useAuthStore = create<AuthState>((set) => ({
         isAuthenticated: false
       });
     } catch (error) {
+      // Always clear local state regardless of server response
+      set({
+        faculty: null,
+        isAuthenticated: false
+      });
       console.error('Error during logout:', error);
     }
   },
