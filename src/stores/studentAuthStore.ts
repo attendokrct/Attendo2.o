@@ -54,7 +54,7 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
 
       if (studentError || !studentData) {
         if (studentError?.code === 'PGRST116') {
-          throw new Error('Student not found. Please check your roll number.');
+          throw new Error(`Student with roll number "${rollNumber}" not found. Please contact your administrator to add your record to the system.`);
         }
         throw new Error('Error finding student. Please try again.');
       }
