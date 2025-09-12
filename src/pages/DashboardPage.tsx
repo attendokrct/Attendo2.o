@@ -10,18 +10,21 @@ interface Class {
   name: string;
 }
 
-interface TodaySchedule {
+interface Period {
+  id: string;
+  name: string;
+  time_slot: string;
+  weekday: string;
   classId: string;
   className: string;
   classCode: string;
-  periods: number;
 }
 
 export default function DashboardPage() {
   const { faculty } = useAuthStore();
   const navigate = useNavigate();
   const [classes, setClasses] = useState<Class[]>([]);
-  const [todaySchedule, setTodaySchedule] = useState<TodaySchedule[]>([]);
+  const [todaySchedule, setTodaySchedule] = useState<Period[]>([]);
   const [currentDate, setCurrentDate] = useState('');
   const [currentTime, setCurrentTime] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -73,34 +76,66 @@ export default function DashboardPage() {
     return () => clearInterval(timeInterval);
   }, []);
 
-  const handleClassClick = (classItem: Class) => {
-    setTodaySchedule(prev => {
-      const existing = prev.find(item => item.classId === classItem.id);
-      if (existing) {
-        return prev.map(item =>
-          item.classId === classItem.id
-            ? { ...item, periods: item.periods + 1 }
-            : item
-        );
-      } else {
-        return [...prev, {
+  const handleClassClick = async (classItem: Class) => {
+    if (!faculty) return;
+
+    try {
+      // Get current weekday
+      const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const currentWeekday = weekdays[new Date().getDay()];
+      
+      // Create a new period record in the database
+      const { data: newPeriod, error } = await supabase
+        .from('periods')
+        .insert({
+          faculty_id: faculty.id,
+          class_id: classItem.id,
+          name: classItem.name,
+          time_slot: new Date().toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          }),
+          weekday: currentWeekday
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Add to today's schedule
+      if (newPeriod) {
+        const periodWithClassInfo = {
+          ...newPeriod,
           classId: classItem.id,
           className: classItem.name,
-          classCode: classItem.code,
-          periods: 1
-        }];
+          classCode: classItem.code
+        };
+        setTodaySchedule(prev => [...prev, periodWithClassInfo]);
       }
-    });
+    } catch (error) {
+      console.error('Error creating period:', error);
+    }
   };
 
-  const handleScheduleClick = (scheduleItem: TodaySchedule) => {
-    // For now, navigate to attendance with a temporary period ID
-    // In a real implementation, you'd create actual period records
-    navigate(`/attendance/temp-${scheduleItem.classId}/${scheduleItem.classCode}`);
+  const handleScheduleClick = (scheduleItem: Period) => {
+    navigate(`/attendance/${scheduleItem.id}/${scheduleItem.classCode}`);
   };
 
-  const handleRemovePeriod = (classId: string) => {
-    setTodaySchedule(prev => prev.filter(item => item.classId !== classId));
+  const handleRemovePeriod = async (period: Period) => {
+    try {
+      // Delete the period from the database
+      const { error } = await supabase
+        .from('periods')
+        .delete()
+        .eq('id', period.id);
+
+      if (error) throw error;
+
+      // Remove from today's schedule
+      setTodaySchedule(prev => prev.filter(item => item.id !== period.id));
+    } catch (error) {
+      console.error('Error removing period:', error);
+    }
   };
 
   if (!faculty) {
@@ -202,7 +237,7 @@ export default function DashboardPage() {
                 <div className="space-y-3">
                   {todaySchedule.map((scheduleItem, index) => (
                     <div
-                      key={scheduleItem.classId}
+                      key={scheduleItem.id}
                       className="p-4 border border-gray-200 rounded-lg hover:bg-success-50 hover:border-success-300 cursor-pointer transition-all animate-slide-in"
                       style={{ animationDelay: `${index * 50}ms` }}
                       onClick={() => handleScheduleClick(scheduleItem)}
@@ -212,13 +247,13 @@ export default function DashboardPage() {
                           <h4 className="font-medium text-gray-900">{scheduleItem.className}</h4>
                           <p className="text-sm text-gray-500">Code: {scheduleItem.classCode}</p>
                           <p className="text-sm text-primary-600 font-medium">
-                            {scheduleItem.periods} period{scheduleItem.periods > 1 ? 's' : ''}
+                            Time: {scheduleItem.time_slot}
                           </p>
                         </div>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleRemovePeriod(scheduleItem.classId);
+                            handleRemovePeriod(scheduleItem);
                           }}
                           className="p-1 text-error-600 hover:text-error-800 rounded"
                         >
