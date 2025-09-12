@@ -242,38 +242,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-            <div
-              key={period.id}
-              className="card hover:shadow-md transition-all cursor-pointer animate-slide-in"
-              style={{ animationDelay: `${index * 50}ms` }}
-              onClick={() => handlePeriodClick(period)}
-            >
-              <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
-                <h3 className="font-medium text-gray-800">{period.name}</h3>
-                <span className="text-xs bg-primary-100 text-primary-800 px-2 py-1 rounded-full">
-                  {period.time_slot}
-                </span>
-              </div>
-              <div className="p-5">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h4 className="text-lg font-medium text-gray-900">
-                      {period.class.name}
-                    </h4>
-                    <p className="text-sm text-gray-500">Class Code: {period.class.code}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {!isLoading && timetable.length === 0 && (
-        <div className="text-center py-8">
-          <p className="text-gray-500">No classes scheduled for {selectedWeekday}.</p>
-        </div>
-      )}
-    </div>
-  );
-}
