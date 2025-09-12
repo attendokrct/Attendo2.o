@@ -1,52 +1,69 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Clock, User, BookOpen, Plus, Minus } from 'lucide-react';
+import { Calendar, Clock, User, BookOpen, Edit2 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { supabase } from '../lib/supabase';
 
-interface Class {
+interface Period {
   id: string;
-  code: string;
   name: string;
-}
-
-interface TodaySchedule {
-  classId: string;
-  className: string;
-  classCode: string;
-  periods: number;
+  time_slot: string;
+  weekday: string;
+  class: {
+    id: string;
+    code: string;
+    name: string;
+  };
 }
 
 export default function DashboardPage() {
   const { faculty } = useAuthStore();
   const navigate = useNavigate();
-  const [classes, setClasses] = useState<Class[]>([]);
-  const [todaySchedule, setTodaySchedule] = useState<TodaySchedule[]>([]);
+  const [timetable, setTimetable] = useState<Period[]>([]);
   const [currentDate, setCurrentDate] = useState('');
   const [currentTime, setCurrentTime] = useState('');
+  const [selectedWeekday, setSelectedWeekday] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchClasses = async () => {
-      if (!faculty) return;
+    const now = new Date();
+    const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    setSelectedWeekday(weekdays[now.getDay()]);
+  }, []);
+
+  useEffect(() => {
+    const fetchTimetable = async () => {
+      if (!faculty || !selectedWeekday) return;
 
       try {
         const { data, error } = await supabase
-          .from('classes')
-          .select('*')
-          .order('code');
+          .from('periods')
+          .select(`
+            id,
+            name,
+            time_slot,
+            weekday,
+            class:classes (
+              id,
+              code,
+              name
+            )
+          `)
+          .eq('faculty_id', faculty.id)
+          .eq('weekday', selectedWeekday)
+          .order('time_slot');
 
         if (error) throw error;
-        setClasses(data || []);
+        setTimetable(data || []);
       } catch (error) {
-        console.error('Error fetching classes:', error);
+        console.error('Error fetching timetable:', error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchClasses();
-  }, [faculty]);
+    fetchTimetable();
+  }, [faculty, selectedWeekday]);
 
   useEffect(() => {
     // Set current date
@@ -73,35 +90,11 @@ export default function DashboardPage() {
     return () => clearInterval(timeInterval);
   }, []);
 
-  const handleClassClick = (classItem: Class) => {
-    setTodaySchedule(prev => {
-      const existing = prev.find(item => item.classId === classItem.id);
-      if (existing) {
-        return prev.map(item =>
-          item.classId === classItem.id
-            ? { ...item, periods: item.periods + 1 }
-            : item
-        );
-      } else {
-        return [...prev, {
-          classId: classItem.id,
-          className: classItem.name,
-          classCode: classItem.code,
-          periods: 1
-        }];
-      }
-    });
+  const handlePeriodClick = (period: Period) => {
+    navigate(`/attendance/${period.id}/${period.class.code}`);
   };
 
-  const handleScheduleClick = (scheduleItem: TodaySchedule) => {
-    // For now, navigate to attendance with a temporary period ID
-    // In a real implementation, you'd create actual period records
-    navigate(`/attendance/temp-${scheduleItem.classId}/${scheduleItem.classCode}`);
-  };
-
-  const handleRemovePeriod = (classId: string) => {
-    setTodaySchedule(prev => prev.filter(item => item.classId !== classId));
-  };
+  const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
   if (!faculty) {
     return (
@@ -149,7 +142,28 @@ export default function DashboardPage() {
       </div>
 
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold">Faculty Classes</h2>
+        <div className="flex items-center space-x-2">
+          <BookOpen className="h-5 w-5 text-primary-600" />
+          <h2 className="text-xl font-semibold">Timetable</h2>
+        </div>
+        <div className="flex items-center space-x-4">
+          <select
+            value={selectedWeekday}
+            onChange={(e) => setSelectedWeekday(e.target.value)}
+            className="form-input py-1 pl-3 pr-8"
+          >
+            {weekdays.map(day => (
+              <option key={day} value={day}>{day}</option>
+            ))}
+          </select>
+          <button
+            onClick={() => navigate('/timetable/edit')}
+            className="btn btn-secondary flex items-center"
+          >
+            <Edit2 className="h-4 w-4 mr-2" />
+            Edit Timetable
+          </button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -157,86 +171,38 @@ export default function DashboardPage() {
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Available Classes */}
-          <div className="card">
-            <div className="p-4 bg-gray-50 border-b">
-              <h3 className="font-medium text-gray-800">Available Classes</h3>
-              <p className="text-sm text-gray-500">Click to add to today's schedule</p>
-            </div>
-            <div className="p-4">
-              <div className="grid grid-cols-1 gap-3">
-                {classes.map((classItem, index) => (
-                  <div
-                    key={classItem.id}
-                    className="p-4 border border-gray-200 rounded-lg hover:bg-primary-50 hover:border-primary-300 cursor-pointer transition-all animate-slide-in"
-                    style={{ animationDelay: `${index * 50}ms` }}
-                    onClick={() => handleClassClick(classItem)}
-                  >
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <h4 className="font-medium text-gray-900">{classItem.name}</h4>
-                        <p className="text-sm text-gray-500">Code: {classItem.code}</p>
-                      </div>
-                      <Plus className="h-5 w-5 text-primary-600" />
-                    </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {timetable.map((period, index) => (
+            <div
+              key={period.id}
+              className="card hover:shadow-md transition-all cursor-pointer animate-slide-in"
+              style={{ animationDelay: `${index * 50}ms` }}
+              onClick={() => handlePeriodClick(period)}
+            >
+              <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                <h3 className="font-medium text-gray-800">{period.name}</h3>
+                <span className="text-xs bg-primary-100 text-primary-800 px-2 py-1 rounded-full">
+                  {period.time_slot}
+                </span>
+              </div>
+              <div className="p-5">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h4 className="text-lg font-medium text-gray-900">
+                      {period.class.name}
+                    </h4>
+                    <p className="text-sm text-gray-500">Class Code: {period.class.code}</p>
                   </div>
-                ))}
+                </div>
               </div>
             </div>
-          </div>
-
-          {/* Today's Schedule */}
-          <div className="card">
-            <div className="p-4 bg-gray-50 border-b">
-              <h3 className="font-medium text-gray-800">Today's Schedule</h3>
-              <p className="text-sm text-gray-500">Click to take attendance</p>
-            </div>
-            <div className="p-4">
-              {todaySchedule.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">
-                  No classes scheduled for today.<br />
-                  Click on classes from the left to add them.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {todaySchedule.map((scheduleItem, index) => (
-                    <div
-                      key={scheduleItem.classId}
-                      className="p-4 border border-gray-200 rounded-lg hover:bg-success-50 hover:border-success-300 cursor-pointer transition-all animate-slide-in"
-                      style={{ animationDelay: `${index * 50}ms` }}
-                      onClick={() => handleScheduleClick(scheduleItem)}
-                    >
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <h4 className="font-medium text-gray-900">{scheduleItem.className}</h4>
-                          <p className="text-sm text-gray-500">Code: {scheduleItem.classCode}</p>
-                          <p className="text-sm text-primary-600 font-medium">
-                            {scheduleItem.periods} period{scheduleItem.periods > 1 ? 's' : ''}
-                          </p>
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemovePeriod(scheduleItem.classId);
-                          }}
-                          className="p-1 text-error-600 hover:text-error-800 rounded"
-                        >
-                          <Minus className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+          ))}
         </div>
       )}
 
-      {!isLoading && classes.length === 0 && (
+      {!isLoading && timetable.length === 0 && (
         <div className="text-center py-8">
-          <p className="text-gray-500">No classes available.</p>
+          <p className="text-gray-500">No classes scheduled for {selectedWeekday}.</p>
         </div>
       )}
     </div>

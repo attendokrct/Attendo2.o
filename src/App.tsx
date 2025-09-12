@@ -8,6 +8,7 @@ import StudentLoginPage from './pages/StudentLoginPage';
 import DashboardPage from './pages/DashboardPage';
 import StudentDashboardPage from './pages/StudentDashboardPage';
 import AttendancePage from './pages/AttendancePage';
+import TimetableEditPage from './pages/TimetableEditPage';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import StudentProtectedRoute from './components/StudentProtectedRoute';
@@ -33,6 +34,7 @@ function App() {
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/attendance/:periodId/:classCode" element={<AttendancePage />} />
+          <Route path="/timetable/edit" element={<TimetableEditPage />} />
         </Route>
       </Route>
 
