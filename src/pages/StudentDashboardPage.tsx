@@ -67,40 +67,56 @@ export default function StudentDashboardPage() {
       if (!student) return;
 
       try {
-        // Fetch all attendance records from both current and history tables
-        const [currentRecords, historyRecords] = await Promise.all([
-          supabase
-            .from('attendance_records')
-            .select(`
-              *,
-              periods!inner(
-                name,
-                time_slot,
-                faculty:faculty!inner(name)
-              )
-            `)
-            .eq('student_id', student.id),
-          supabase
-            .from('attendance_history')
-            .select(`
-              *,
-              periods!inner(
-                name,
-                time_slot,
-                faculty:faculty!inner(name)
-              )
-            `)
-            .eq('student_id', student.id)
-        ]);
+        // First, let's check what student data we have
+        console.log('Student data:', student);
 
-        if (currentRecords.error) throw currentRecords.error;
-        if (historyRecords.error) throw historyRecords.error;
+        // Fetch attendance records from current table
+        const { data: currentRecords, error: currentError } = await supabase
+          .from('attendance_records')
+          .select(`
+            *,
+            periods!inner(
+              name,
+              time_slot,
+              faculty:faculty!inner(name)
+            )
+          `)
+          .eq('student_id', student.id);
+
+        console.log('Current records:', currentRecords, 'Error:', currentError);
+
+        // Fetch attendance records from history table
+        const { data: historyRecords, error: historyError } = await supabase
+          .from('attendance_history')
+          .select(`
+            *,
+            periods!inner(
+              name,
+              time_slot,
+              faculty:faculty!inner(name)
+            )
+          `)
+          .eq('student_id', student.id);
+
+        console.log('History records:', historyRecords, 'Error:', historyError);
+
+        // Handle errors
+        if (currentError && currentError.code !== 'PGRST116') {
+          console.error('Error fetching current records:', currentError);
+        }
+        if (historyError && historyError.code !== 'PGRST116') {
+          console.error('Error fetching history records:', historyError);
+        }
 
         // Combine both datasets and remove duplicates by date and period
-        const allRecords = [...(currentRecords.data || []), ...(historyRecords.data || [])];
+        const allRecords = [...(currentRecords || []), ...(historyRecords || [])];
+        console.log('All records combined:', allRecords);
+
         const attendanceData = allRecords.filter((record, index, self) => 
           index === self.findIndex(r => r.date === record.date && r.period_id === record.period_id)
         );
+
+        console.log('Filtered attendance data:', attendanceData);
 
 
         // Group by faculty (subject)
@@ -127,6 +143,8 @@ export default function StudentDashboardPage() {
           subjectData.records.push(record);
         });
 
+        console.log('Subject map:', subjectMap);
+
         // Calculate subject-wise attendance
         const subjectStats: SubjectAttendance[] = Array.from(subjectMap.entries()).map(([facultyName, data]) => {
           const total_classes = data.records.length;
@@ -146,6 +164,8 @@ export default function StudentDashboardPage() {
           };
         });
 
+        console.log('Subject stats:', subjectStats);
+
         setSubjectAttendance(subjectStats);
 
         // Calculate overall stats
@@ -162,6 +182,8 @@ export default function StudentDashboardPage() {
           on_duty_count: totalOnDuty,
           percentage: overallPercentage
         });
+
+        console.log('Overall stats:', overallStats);
 
       } catch (error) {
         console.error('Error fetching attendance data:', error);

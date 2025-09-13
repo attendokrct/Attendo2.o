@@ -43,7 +43,7 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
         .from('students')
         .select(`
           *,
-          class:classes (
+          classes (
             id,
             code,
             name
@@ -69,7 +69,7 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
         roll_number: studentData.roll_number,
         name: studentData.name,
         email: studentData.email,
-        class: studentData.class
+        class: studentData.classes
       };
 
       set({
