@@ -63,7 +63,7 @@ export default function StudentLoginPage() {
                   className="form-input pl-10"
                   placeholder="2I2442"
                   value={rollNumber}
-                  onChange={(e) => setRollNumber(e.target.value.toUpperCase())}
+                  onChange={(e) => setRollNumber(e.target.value.trim().toUpperCase())}
                 />
               </div>
             </div>
