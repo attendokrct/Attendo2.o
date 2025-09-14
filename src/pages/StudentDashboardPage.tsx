@@ -122,31 +122,30 @@ export default function StudentDashboardPage() {
         // Group by faculty (subject)
         const subjectMap = new Map<string, {
           faculty_name: string;
-          periods: Set<string>;
+          subject_name: string;
           records: any[];
         }>();
 
         attendanceData.forEach(record => {
           const facultyName = record.periods.faculty.name;
-          const periodInfo = `${record.periods.name} (${record.periods.time_slot})`;
+          const subjectKey = `${facultyName}_${record.period_id}`;
           
-          if (!subjectMap.has(facultyName)) {
-            subjectMap.set(facultyName, {
+          if (!subjectMap.has(subjectKey)) {
+            subjectMap.set(subjectKey, {
               faculty_name: facultyName,
-              periods: new Set(),
+              subject_name: `${record.periods.name} - ${record.periods.time_slot}`,
               records: []
             });
           }
           
-          const subjectData = subjectMap.get(facultyName)!;
-          subjectData.periods.add(periodInfo);
+          const subjectData = subjectMap.get(subjectKey)!;
           subjectData.records.push(record);
         });
 
         console.log('Subject map:', subjectMap);
 
         // Calculate subject-wise attendance
-        const subjectStats: SubjectAttendance[] = Array.from(subjectMap.entries()).map(([facultyName, data]) => {
+        const subjectStats: SubjectAttendance[] = Array.from(subjectMap.entries()).map(([subjectKey, data]) => {
           const total_classes = data.records.length;
           const present_count = data.records.filter(r => r.status === 'present').length;
           const absent_count = data.records.filter(r => r.status === 'absent').length;
@@ -154,8 +153,8 @@ export default function StudentDashboardPage() {
           const percentage = total_classes > 0 ? ((present_count + on_duty_count) / total_classes) * 100 : 0;
 
           return {
-            subject_name: `Classes by ${facultyName}`,
-            faculty_name: facultyName,
+            subject_name: data.subject_name,
+            faculty_name: data.faculty_name,
             total_classes,
             present_count,
             absent_count,
