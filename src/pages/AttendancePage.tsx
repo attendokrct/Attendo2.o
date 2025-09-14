@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check, X, Save, Users, Clock, AlertCircle } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../stores/authStore';
 import { useAttendanceStore, Student, AttendanceStats } from '../stores/attendanceStore';
 import StudentAttendanceModal from '../components/StudentAttendanceModal';
