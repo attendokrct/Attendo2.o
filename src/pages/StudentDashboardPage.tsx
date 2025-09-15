@@ -1,10 +1,10 @@
 import React from 'react';
-import { useStudentAuth } from '../stores/studentAuthStore';
+import { useStudentAuthStore } from '../stores/studentAuthStore';
 import Layout from '../components/Layout';
 import { User, BookOpen, Calendar, Clock } from 'lucide-react';
 
 export default function StudentDashboardPage() {
-  const { student } = useStudentAuth();
+  const { student } = useStudentAuthStore();
 
   if (!student) {
     return (
