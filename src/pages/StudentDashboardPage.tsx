@@ -67,77 +67,117 @@ export default function StudentDashboardPage() {
       if (!student) return;
 
       try {
-        console.log('Student data:', student);
+        console.log('Fetching attendance for student:', student);
 
-        // Fetch attendance records from current table with proper joins
+        // First, let's try a simpler query to see if we can get any records
+        const { data: testRecords, error: testError } = await supabase
+          .from('attendance_records')
+          .select('*')
+          .eq('student_id', student.id);
+
+        console.log('Test records for student:', testRecords, 'Error:', testError);
+
+        // Fetch attendance records from current table
         const { data: currentRecords, error: currentError } = await supabase
           .from('attendance_records')
-          .select(`
-            *,
-            periods(
-              name,
-              time_slot,
-              faculty(name)
-            )
-          `)
+          .select('*')
           .eq('student_id', student.id);
 
-        console.log('Current records:', currentRecords, 'Error:', currentError);
-
-        // Fetch attendance records from history table with proper joins
+        // Fetch attendance records from history table
         const { data: historyRecords, error: historyError } = await supabase
           .from('attendance_history')
-          .select(`
-            *,
-            periods(
-              name,
-              time_slot,
-              faculty(name)
-            )
-          `)
+          .select('*')
           .eq('student_id', student.id);
 
-        console.log('History records:', historyRecords, 'Error:', historyError);
+        console.log('Current records:', currentRecords?.length || 0);
+        console.log('History records:', historyRecords?.length || 0);
 
-        // Handle errors (ignore PGRST116 which means no records found)
-        if (currentError && currentError.code !== 'PGRST116') {
-          console.error('Error fetching current records:', currentError);
-          throw currentError;
+        // Combine all records
+        const allAttendanceRecords = [...(currentRecords || []), ...(historyRecords || [])];
+        console.log('Total attendance records:', allAttendanceRecords.length);
+
+        if (allAttendanceRecords.length === 0) {
+          console.log('No attendance records found for student');
+          setSubjectAttendance([]);
+          setOverallStats({
+            total_classes: 0,
+            present_count: 0,
+            absent_count: 0,
+            on_duty_count: 0,
+            percentage: 0
+          });
+          return;
         }
-        if (historyError && historyError.code !== 'PGRST116') {
-          console.error('Error fetching history records:', historyError);
-          throw historyError;
+
+        // Get unique period IDs to fetch period details
+        const periodIds = [...new Set(allAttendanceRecords.map(record => record.period_id))];
+        console.log('Unique period IDs:', periodIds);
+
+        // Fetch period details with faculty information
+        const { data: periodsData, error: periodsError } = await supabase
+          .from('periods')
+          .select(`
+            id,
+            name,
+            time_slot,
+            faculty:faculty_id (
+              name
+            )
+          `)
+          .in('id', periodIds);
+
+        console.log('Periods data:', periodsData, 'Error:', periodsError);
+
+        if (!periodsData || periodsData.length === 0) {
+          console.log('No period data found');
+          return;
         }
 
-        // Combine both datasets, filter out null periods, and remove duplicates
-        const allRecords = [...(currentRecords || []), ...(historyRecords || [])];
-        const validRecords = allRecords.filter(record => record.periods && record.periods.faculty);
-        console.log('All records combined:', allRecords);
-        console.log('Valid records with periods:', validRecords);
+        // Create a map of period ID to period details
+        const periodMap = new Map();
+        periodsData.forEach(period => {
+          if (period.faculty) {
+            periodMap.set(period.id, {
+              name: period.name,
+              time_slot: period.time_slot,
+              faculty_name: period.faculty.name
+            });
+          }
+        });
 
-        const attendanceData = validRecords.filter((record, index, self) => 
+        console.log('Period map:', periodMap);
+
+        // Filter attendance records to only include those with valid periods
+        const validAttendanceRecords = allAttendanceRecords.filter(record => 
+          periodMap.has(record.period_id)
+        );
+
+        console.log('Valid attendance records:', validAttendanceRecords.length);
+
+        // Remove duplicates (same period and date)
+        const uniqueRecords = validAttendanceRecords.filter((record, index, self) => 
           index === self.findIndex(r => r.date === record.date && r.period_id === record.period_id)
         );
 
-        console.log('Filtered attendance data:', attendanceData);
+        console.log('Unique records after deduplication:', uniqueRecords.length);
 
-        // Group by faculty and period (subject)
+        // Group by period (subject)
         const subjectMap = new Map<string, {
           faculty_name: string;
           subject_name: string;
           records: any[];
         }>();
 
-        attendanceData.forEach(record => {
-          if (!record.periods || !record.periods.faculty) {
-            console.warn('Skipping record with missing period/faculty data:', record);
+        uniqueRecords.forEach(record => {
+          const periodInfo = periodMap.get(record.period_id);
+          if (!periodInfo) {
             return;
           }
           
-          const facultyName = record.periods.faculty.name;
-          const periodName = record.periods.name || 'Unknown Period';
-          const timeSlot = record.periods.time_slot || '';
-          const subjectKey = `${facultyName}_${record.period_id}`;
+          const facultyName = periodInfo.faculty_name;
+          const periodName = periodInfo.name || 'Unknown Period';
+          const timeSlot = periodInfo.time_slot || '';
+          const subjectKey = record.period_id; // Use period_id as unique key
           
           if (!subjectMap.has(subjectKey)) {
             subjectMap.set(subjectKey, {
@@ -177,10 +217,10 @@ export default function StudentDashboardPage() {
         setSubjectAttendance(subjectStats);
 
         // Calculate overall attendance statistics
-        const totalClasses = attendanceData.length;
-        const totalPresent = attendanceData.filter(r => r.status === 'present').length;
-        const totalAbsent = attendanceData.filter(r => r.status === 'absent').length;
-        const totalOnDuty = attendanceData.filter(r => r.status === 'on_duty').length;
+        const totalClasses = uniqueRecords.length;
+        const totalPresent = uniqueRecords.filter(r => r.status === 'present').length;
+        const totalAbsent = uniqueRecords.filter(r => r.status === 'absent').length;
+        const totalOnDuty = uniqueRecords.filter(r => r.status === 'on_duty').length;
         const overallPercentage = totalClasses > 0 ? ((totalPresent + totalOnDuty) / totalClasses) * 100 : 0;
 
         const newOverallStats = {
