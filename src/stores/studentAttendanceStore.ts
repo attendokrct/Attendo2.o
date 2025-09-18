@@ -9,7 +9,9 @@ export interface StudentAttendanceRecord {
     id: string;
     name: string;
     time_slot: string;
+    weekday: string;
     faculty: {
+      id: string;
       name: string;
       designation: string;
     };
@@ -59,6 +61,8 @@ export const useStudentAttendanceStore = create<StudentAttendanceState>((set) =>
     set({ isLoading: true, error: null });
 
     try {
+      console.log('Fetching attendance for student ID:', studentId);
+      
       // Fetch attendance records from both current and history tables
       const [currentRecords, historyRecords] = await Promise.all([
         supabase
@@ -67,11 +71,13 @@ export const useStudentAttendanceStore = create<StudentAttendanceState>((set) =>
             id,
             date,
             status,
-            periods!inner (
+            period:periods!inner (
               id,
               name,
               time_slot,
+              weekday,
               faculty!inner (
+                id,
                 name,
                 designation
               )
@@ -86,11 +92,13 @@ export const useStudentAttendanceStore = create<StudentAttendanceState>((set) =>
             id,
             date,
             status,
-            periods!inner (
+            period:periods!inner (
               id,
               name,
               time_slot,
+              weekday,
               faculty!inner (
+                id,
                 name,
                 designation
               )
@@ -100,31 +108,40 @@ export const useStudentAttendanceStore = create<StudentAttendanceState>((set) =>
           .order('date', { ascending: false })
       ]);
 
+      console.log('Current records:', currentRecords);
+      console.log('History records:', historyRecords);
+
       if (currentRecords.error) throw currentRecords.error;
       if (historyRecords.error) throw historyRecords.error;
 
       // Combine and deduplicate records
       const allRecords = [...(currentRecords.data || []), ...(historyRecords.data || [])];
+      console.log('All records before deduplication:', allRecords.length);
+      
       const uniqueRecords = allRecords.filter((record, index, self) => 
-        index === self.findIndex(r => r.date === record.date && r.periods.id === record.periods.id)
+        index === self.findIndex(r => r.date === record.date && r.period.id === record.period.id)
       );
 
+      console.log('Unique records after deduplication:', uniqueRecords.length);
       // Transform data for analytics
       const records: StudentAttendanceRecord[] = uniqueRecords.map(record => ({
         id: record.id,
         date: record.date,
         status: record.status,
         period: {
-          id: record.periods.id,
-          name: record.periods.name,
-          time_slot: record.periods.time_slot,
+          id: record.period.id,
+          name: record.period.name,
+          time_slot: record.period.time_slot,
+          weekday: record.period.weekday,
           faculty: {
-            name: record.periods.faculty.name,
-            designation: record.periods.faculty.designation
+            id: record.period.faculty.id,
+            name: record.period.faculty.name,
+            designation: record.period.faculty.designation
           }
         }
       }));
 
+      console.log('Transformed records:', records);
       // Calculate overall statistics
       const totalClasses = records.length;
       const totalPresent = records.filter(r => r.status === 'present').length;
@@ -132,10 +149,11 @@ export const useStudentAttendanceStore = create<StudentAttendanceState>((set) =>
       const totalOnDuty = records.filter(r => r.status === 'on_duty').length;
       const overallPercentage = totalClasses > 0 ? ((totalPresent + totalOnDuty) / totalClasses) * 100 : 0;
 
+      console.log('Overall stats:', { totalClasses, totalPresent, totalAbsent, totalOnDuty, overallPercentage });
       // Calculate subject-wise attendance
       const facultyMap = new Map<string, StudentAttendanceRecord[]>();
       records.forEach(record => {
-        const key = `${record.period.faculty.name}-${record.period.faculty.designation}`;
+        const key = record.period.faculty.id; // Use faculty ID as key for uniqueness
         if (!facultyMap.has(key)) {
           facultyMap.set(key, []);
         }
@@ -143,7 +161,8 @@ export const useStudentAttendanceStore = create<StudentAttendanceState>((set) =>
       });
 
       const subjectWise: SubjectAttendance[] = Array.from(facultyMap.entries()).map(([key, records]) => {
-        const [facultyName, facultyDesignation] = key.split('-');
+        const facultyName = records[0].period.faculty.name;
+        const facultyDesignation = records[0].period.faculty.designation;
         const totalClasses = records.length;
         const presentCount = records.filter(r => r.status === 'present').length;
         const absentCount = records.filter(r => r.status === 'absent').length;
@@ -161,6 +180,7 @@ export const useStudentAttendanceStore = create<StudentAttendanceState>((set) =>
         };
       });
 
+      console.log('Subject-wise attendance:', subjectWise);
       // Calculate monthly data
       const monthlyMap = new Map<string, StudentAttendanceRecord[]>();
       records.forEach(record => {
@@ -208,6 +228,7 @@ export const useStudentAttendanceStore = create<StudentAttendanceState>((set) =>
         monthlyData
       };
 
+      console.log('Final analytics:', analytics);
       set({ analytics, isLoading: false });
     } catch (error) {
       console.error('Error fetching student attendance:', error);

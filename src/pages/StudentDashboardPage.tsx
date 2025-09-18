@@ -28,6 +28,7 @@ export default function StudentDashboardPage() {
 
   useEffect(() => {
     if (student) {
+      console.log('Student data:', student);
       fetchStudentAttendance(student.id);
     }
   }, [student, fetchStudentAttendance]);
@@ -140,7 +141,14 @@ export default function StudentDashboardPage() {
           </div>
         ) : error ? (
           <div className="bg-error-50 border border-error-200 text-error-700 px-4 py-3 rounded mb-6">
-            {error}
+            <p className="font-medium">Error loading attendance data:</p>
+            <p className="text-sm mt-1">{error}</p>
+            <button 
+              onClick={() => student && fetchStudentAttendance(student.id)}
+              className="mt-2 text-sm bg-error-100 hover:bg-error-200 px-3 py-1 rounded"
+            >
+              Retry
+            </button>
           </div>
         ) : analytics ? (
           <>
@@ -348,7 +356,13 @@ export default function StudentDashboardPage() {
           <div className="text-center py-12">
             <Users className="h-16 w-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No Attendance Data</h3>
-            <p className="text-gray-500">Your attendance records will appear here once classes begin.</p>
+            <p className="text-gray-500 mb-4">Your attendance records will appear here once classes begin.</p>
+            <button 
+              onClick={() => student && fetchStudentAttendance(student.id)}
+              className="btn btn-primary"
+            >
+              Refresh Data
+            </button>
           </div>
         )}
 
