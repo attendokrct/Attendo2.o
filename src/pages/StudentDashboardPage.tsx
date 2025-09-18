@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStudentAuthStore } from '../stores/studentAuthStore';
 import { useStudentAttendanceStore } from '../stores/studentAttendanceStore';
@@ -15,47 +15,46 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  Users
+  Users,
+  RefreshCw
 } from 'lucide-react';
 import AttendanceCircle from '../components/AttendanceCircle';
 
 export default function StudentDashboardPage() {
   const { student, logout } = useStudentAuthStore();
-  const { analytics, isLoading, error, fetchStudentAttendance } = useStudentAttendanceStore();
+  const { analytics, isLoading, error, fetchStudentAttendance, clearData } = useStudentAttendanceStore();
   const navigate = useNavigate();
   const [currentDate, setCurrentDate] = useState('');
   const [currentTime, setCurrentTime] = useState('');
 
   useEffect(() => {
     if (student) {
-      console.log('Student data:', student);
+      console.log('Student logged in:', student);
       fetchStudentAttendance(student.id);
+    } else {
+      clearData();
     }
-  }, [student, fetchStudentAttendance]);
+  }, [student, fetchStudentAttendance, clearData]);
 
   useEffect(() => {
-    // Set current date
-    const now = new Date();
-    setCurrentDate(now.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    }));
-
-    // Update time every minute
-    const updateTime = () => {
-      const time = new Date().toLocaleTimeString('en-US', {
+    // Set current date and time
+    const updateDateTime = () => {
+      const now = new Date();
+      setCurrentDate(now.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      }));
+      setCurrentTime(now.toLocaleTimeString('en-US', {
         hour: '2-digit',
         minute: '2-digit'
-      });
-      setCurrentTime(time);
+      }));
     };
 
-    updateTime();
-    const timeInterval = setInterval(updateTime, 60000);
-
-    return () => clearInterval(timeInterval);
+    updateDateTime();
+    const interval = setInterval(updateDateTime, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleLogout = () => {
@@ -63,11 +62,17 @@ export default function StudentDashboardPage() {
     navigate('/');
   };
 
+  const handleRefresh = () => {
+    if (student) {
+      fetchStudentAttendance(student.id);
+    }
+  };
+
   const getAttendanceStatus = (percentage: number) => {
-    if (percentage >= 85) return { color: 'text-success-600', icon: TrendingUp, label: 'Excellent' };
-    if (percentage >= 75) return { color: 'text-success-500', icon: CheckCircle, label: 'Good' };
-    if (percentage >= 65) return { color: 'text-warning-500', icon: AlertCircle, label: 'Warning' };
-    return { color: 'text-error-500', icon: TrendingDown, label: 'Critical' };
+    if (percentage >= 85) return { color: 'text-success-600', icon: TrendingUp, label: 'Excellent', bgColor: 'bg-success-50' };
+    if (percentage >= 75) return { color: 'text-success-500', icon: CheckCircle, label: 'Good', bgColor: 'bg-success-50' };
+    if (percentage >= 65) return { color: 'text-warning-500', icon: AlertCircle, label: 'Warning', bgColor: 'bg-warning-50' };
+    return { color: 'text-error-500', icon: TrendingDown, label: 'Critical', bgColor: 'bg-error-50' };
   };
 
   if (!student) {
@@ -100,7 +105,7 @@ export default function StudentDashboardPage() {
               </div>
               <button
                 onClick={handleLogout}
-                className="flex items-center text-gray-600 hover:text-gray-900"
+                className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
               >
                 <LogOut className="h-5 w-5 mr-1" />
                 <span>Logout</span>
@@ -126,6 +131,7 @@ export default function StudentDashboardPage() {
                 <p className="text-gray-600">
                   Roll Number: {student.roll_number} | Class: {student.class?.name || 'Not assigned'}
                 </p>
+                <p className="text-sm text-gray-500">Class Code: {student.class?.code}</p>
               </div>
             </div>
             <div className="text-right">
@@ -135,22 +141,37 @@ export default function StudentDashboardPage() {
           </div>
         </div>
 
-        {isLoading ? (
+        {/* Loading State */}
+        {isLoading && (
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-success-600"></div>
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-success-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading your attendance data...</p>
+            </div>
           </div>
-        ) : error ? (
+        )}
+
+        {/* Error State */}
+        {error && (
           <div className="bg-error-50 border border-error-200 text-error-700 px-4 py-3 rounded mb-6">
-            <p className="font-medium">Error loading attendance data:</p>
-            <p className="text-sm mt-1">{error}</p>
-            <button 
-              onClick={() => student && fetchStudentAttendance(student.id)}
-              className="mt-2 text-sm bg-error-100 hover:bg-error-200 px-3 py-1 rounded"
-            >
-              Retry
-            </button>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">Error loading attendance data:</p>
+                <p className="text-sm mt-1">{error}</p>
+              </div>
+              <button 
+                onClick={handleRefresh}
+                className="flex items-center text-sm bg-error-100 hover:bg-error-200 px-3 py-1 rounded transition-colors"
+              >
+                <RefreshCw className="h-4 w-4 mr-1" />
+                Retry
+              </button>
+            </div>
           </div>
-        ) : analytics ? (
+        )}
+
+        {/* Analytics Dashboard */}
+        {!isLoading && analytics && (
           <>
             {/* Overall Attendance Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -220,7 +241,7 @@ export default function StudentDashboardPage() {
               </div>
             </div>
 
-            {/* Attendance Visualization and Subject-wise */}
+            {/* Attendance Visualization */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
               {/* Attendance Circle */}
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -247,78 +268,18 @@ export default function StudentDashboardPage() {
                 </div>
               </div>
 
-              {/* Subject-wise Attendance */}
+              {/* Recent Records */}
               <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h2 className="text-xl font-bold text-gray-800 mb-6">Subject-wise Attendance</h2>
-                <div className="space-y-4 max-h-80 overflow-y-auto">
-                  {analytics.subjectWise.map((subject, index) => (
-                    <div key={index} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <h3 className="font-semibold text-gray-800">{subject.facultyName}</h3>
-                          <p className="text-sm text-gray-500">{subject.facultyDesignation}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-lg font-bold text-gray-900">{subject.percentage.toFixed(1)}%</p>
-                          <p className="text-sm text-gray-500">{subject.presentCount + subject.onDutyCount}/{subject.totalClasses}</p>
-                        </div>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className={`h-2 rounded-full ${
-                            subject.percentage >= 75 ? 'bg-success-500' : 
-                            subject.percentage >= 65 ? 'bg-warning-500' : 'bg-error-500'
-                          }`}
-                          style={{ width: `${Math.min(subject.percentage, 100)}%` }}
-                        ></div>
-                      </div>
-                      <div className="flex justify-between text-xs text-gray-500 mt-2">
-                        <span>Present: {subject.presentCount}</span>
-                        <span>Absent: {subject.absentCount}</span>
-                        <span>On Duty: {subject.onDutyCount}</span>
-                      </div>
-                    </div>
-                  ))}
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-bold text-gray-800">Recent Attendance</h2>
+                  <button
+                    onClick={handleRefresh}
+                    className="flex items-center text-sm text-primary-600 hover:text-primary-800 transition-colors"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                    Refresh
+                  </button>
                 </div>
-              </div>
-            </div>
-
-            {/* Monthly Trend and Recent Records */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Monthly Trend */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h2 className="text-xl font-bold text-gray-800 mb-6">Monthly Attendance Trend</h2>
-                <div className="space-y-4">
-                  {analytics.monthlyData.map((month, index) => (
-                    <div key={index} className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="text-sm font-medium text-gray-700">{month.month}</span>
-                          <span className="text-sm font-bold text-gray-900">{month.percentage.toFixed(1)}%</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className={`h-2 rounded-full ${
-                              month.percentage >= 75 ? 'bg-success-500' : 
-                              month.percentage >= 65 ? 'bg-warning-500' : 'bg-error-500'
-                            }`}
-                            style={{ width: `${Math.min(month.percentage, 100)}%` }}
-                          ></div>
-                        </div>
-                        <div className="flex justify-between text-xs text-gray-500 mt-1">
-                          <span>P: {month.present}</span>
-                          <span>A: {month.absent}</span>
-                          <span>OD: {month.onDuty}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Recent Attendance Records */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h2 className="text-xl font-bold text-gray-800 mb-6">Recent Attendance</h2>
                 <div className="space-y-3 max-h-80 overflow-y-auto">
                   {analytics.recentRecords.map((record, index) => (
                     <div key={index} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg">
@@ -351,16 +312,72 @@ export default function StudentDashboardPage() {
                 </div>
               </div>
             </div>
+
+            {/* Subject-wise Attendance */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h2 className="text-xl font-bold text-gray-800 mb-6">Subject-wise Attendance</h2>
+              <div className="space-y-4">
+                {analytics.subjectWise.map((subject, index) => (
+                  <div key={index} className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-800">{subject.facultyName}</h3>
+                        <p className="text-sm text-gray-600">{subject.facultyDesignation}</p>
+                        <p className="text-xs text-gray-500">{subject.facultyDepartment}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-gray-900">{subject.percentage.toFixed(1)}%</p>
+                        <p className="text-sm text-gray-500">
+                          {subject.presentCount + subject.onDutyCount}/{subject.totalClasses} classes
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Progress Bar */}
+                    <div className="w-full bg-gray-200 rounded-full h-3 mb-3">
+                      <div 
+                        className={`h-3 rounded-full transition-all duration-300 ${
+                          subject.percentage >= 85 ? 'bg-success-500' : 
+                          subject.percentage >= 75 ? 'bg-success-400' :
+                          subject.percentage >= 65 ? 'bg-warning-500' : 'bg-error-500'
+                        }`}
+                        style={{ width: `${Math.min(subject.percentage, 100)}%` }}
+                      ></div>
+                    </div>
+                    
+                    {/* Stats */}
+                    <div className="flex justify-between text-xs text-gray-600">
+                      <span className="flex items-center">
+                        <div className="w-2 h-2 bg-success-500 rounded-full mr-1"></div>
+                        Present: {subject.presentCount}
+                      </span>
+                      <span className="flex items-center">
+                        <div className="w-2 h-2 bg-error-500 rounded-full mr-1"></div>
+                        Absent: {subject.absentCount}
+                      </span>
+                      <span className="flex items-center">
+                        <div className="w-2 h-2 bg-warning-500 rounded-full mr-1"></div>
+                        On Duty: {subject.onDutyCount}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </>
-        ) : (
+        )}
+
+        {/* No Data State */}
+        {!isLoading && !error && !analytics && (
           <div className="text-center py-12">
             <Users className="h-16 w-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No Attendance Data</h3>
             <p className="text-gray-500 mb-4">Your attendance records will appear here once classes begin.</p>
             <button 
-              onClick={() => student && fetchStudentAttendance(student.id)}
+              onClick={handleRefresh}
               className="btn btn-primary"
             >
+              <RefreshCw className="h-4 w-4 mr-2" />
               Refresh Data
             </button>
           </div>

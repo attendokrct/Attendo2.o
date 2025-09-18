@@ -6,7 +6,8 @@ interface Student {
   roll_number: string;
   name: string;
   email?: string;
-  class?: {
+  class_id: string;
+  class: {
     id: string;
     code: string;
     name: string;
@@ -19,11 +20,11 @@ interface StudentAuthState {
   isLoading: boolean;
   error: string | null;
   login: (rollNumber: string, password: string) => Promise<boolean>;
-  logout: () => Promise<void>;
-  initAuth: () => Promise<void>;
+  logout: () => void;
+  initAuth: () => void;
 }
 
-export const useStudentAuthStore = create<StudentAuthState>((set) => ({
+export const useStudentAuthStore = create<StudentAuthState>((set, get) => ({
   student: null,
   isAuthenticated: false,
   isLoading: false,
@@ -33,35 +34,47 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
     set({ isLoading: true, error: null });
     
     try {
+      console.log('Attempting student login with roll number:', rollNumber);
+      
       // Validate input
       if (!rollNumber || !password) {
         throw new Error('Please enter both roll number and password');
       }
 
-      // Find student by roll number
+      // Check password (simple validation for demo)
+      if (password !== 'Student@123') {
+        throw new Error('Invalid password. Use: Student@123');
+      }
+
+      // Find student by roll number with class information
       const { data: studentData, error: studentError } = await supabase
         .from('students')
         .select(`
-          *,
-          class:classes!inner (
+          id,
+          roll_number,
+          name,
+          email,
+          class_id,
+          class:classes (
             id,
             code,
             name
           )
         `)
-        .eq('roll_number', rollNumber)
+        .eq('roll_number', rollNumber.toUpperCase())
         .single();
 
-      if (studentError || !studentData) {
-        if (studentError?.code === 'PGRST116') {
-          throw new Error(`Student with roll number "${rollNumber}" not found. Please contact your administrator to add your record to the system.`);
+      console.log('Student query result:', { studentData, studentError });
+
+      if (studentError) {
+        if (studentError.code === 'PGRST116') {
+          throw new Error(`Student with roll number "${rollNumber}" not found. Please contact your administrator.`);
         }
-        throw new Error('Error finding student. Please try again.');
+        throw new Error('Error finding student record. Please try again.');
       }
 
-      // Check if password matches the default password
-      if (password !== 'Student@123') {
-        throw new Error('Invalid password. Please use: Student@123');
+      if (!studentData) {
+        throw new Error(`No student found with roll number "${rollNumber}"`);
       }
 
       const student: Student = {
@@ -69,10 +82,15 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
         roll_number: studentData.roll_number,
         name: studentData.name,
         email: studentData.email,
+        class_id: studentData.class_id,
         class: studentData.class
       };
 
-      console.log('Student logged in:', student);
+      console.log('Student login successful:', student);
+      
+      // Store in localStorage for persistence
+      localStorage.setItem('student_auth', JSON.stringify(student));
+      
       set({
         student,
         isAuthenticated: true,
@@ -93,7 +111,8 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
     }
   },
   
-  logout: async () => {
+  logout: () => {
+    localStorage.removeItem('student_auth');
     set({
       student: null,
       isAuthenticated: false,
@@ -101,13 +120,19 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
     });
   },
   
-  initAuth: async () => {
-    // Initialize with clean state
-    set({
-      student: null,
-      isAuthenticated: false,
-      isLoading: false,
-      error: null
-    });
+  initAuth: () => {
+    try {
+      const storedAuth = localStorage.getItem('student_auth');
+      if (storedAuth) {
+        const student = JSON.parse(storedAuth);
+        set({
+          student,
+          isAuthenticated: true
+        });
+      }
+    } catch (error) {
+      console.error('Error initializing student auth:', error);
+      localStorage.removeItem('student_auth');
+    }
   }
 }));
