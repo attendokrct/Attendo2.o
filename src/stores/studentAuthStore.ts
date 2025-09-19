@@ -55,7 +55,7 @@ export const useStudentAuthStore = create<StudentAuthState>((set, get) => ({
           name,
           email,
           class_id,
-          class:classes (
+          classes!inner (
             id,
             code,
             name
@@ -83,7 +83,7 @@ export const useStudentAuthStore = create<StudentAuthState>((set, get) => ({
         name: studentData.name,
         email: studentData.email,
         class_id: studentData.class_id,
-        class: studentData.class
+        class: studentData.classes
       };
 
       console.log('Student login successful:', student);
