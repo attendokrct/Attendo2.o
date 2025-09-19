@@ -274,6 +274,15 @@ export const useStudentAttendanceStore = create<StudentAttendanceState>((set, ge
       // Prepare final analytics
       const analytics: AttendanceAnalytics = {
         overallPercentage,
+        totalClasses,
+        totalPresent,
+        totalAbsent,
+        totalOnDuty,
+        subjectWise,
+        recentRecords: records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 10)
+      };
+
+      set({ analytics, isLoading: false });
     } catch (error) {
       console.error('Error fetching student attendance:', error);
       set({ 
