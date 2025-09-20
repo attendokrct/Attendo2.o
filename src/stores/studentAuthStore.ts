@@ -6,7 +6,8 @@ interface Student {
   roll_number: string;
   name: string;
   email?: string;
-  class?: {
+  class_id: string;
+  class: {
     id: string;
     code: string;
     name: string;
@@ -19,11 +20,11 @@ interface StudentAuthState {
   isLoading: boolean;
   error: string | null;
   login: (rollNumber: string, password: string) => Promise<boolean>;
-  logout: () => Promise<void>;
-  initAuth: () => Promise<void>;
+  logout: () => void;
+  initAuth: () => void;
 }
 
-export const useStudentAuthStore = create<StudentAuthState>((set) => ({
+export const useStudentAuthStore = create<StudentAuthState>((set, get) => ({
   student: null,
   isAuthenticated: false,
   isLoading: false,
@@ -33,45 +34,57 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
     set({ isLoading: true, error: null });
     
     try {
+      console.log('Attempting student login with roll number:', rollNumber);
+      
       // Validate input
       if (!rollNumber || !password) {
         throw new Error('Please enter both roll number and password');
       }
 
-      // Find student by roll number
-      const { data: studentData, error: studentError } = await supabase
-        .from('students')
-        .select(`
-          *,
-          classes!inner (
-            id,
-            code,
-            name
-          )
-        `)
-        .eq('roll_number', rollNumber)
-        .single();
-
-      if (studentError || !studentData) {
-        if (studentError?.code === 'PGRST116') {
-          throw new Error(`Student with roll number "${rollNumber}" not found. Please contact your administrator to add your record to the system.`);
-        }
-        throw new Error('Error finding student. Please try again.');
-      }
-
-      // Check if password matches the default password
+      // Check password (simple validation for demo)
       if (password !== 'Student@123') {
-        throw new Error('Invalid password. Please use: Student@123');
+        throw new Error('Invalid password. Use: Student@123');
       }
 
-      const student: Student = {
-        id: studentData.id,
-        roll_number: studentData.roll_number,
-        name: studentData.name,
-        email: studentData.email,
-        class: studentData.classes
+      // Demo student data (for demo purposes without backend)
+      const demoStudents: Record<string, Student> = {
+        'AM2442': {
+          id: 'demo-student-1',
+          roll_number: 'AM2442',
+          name: 'Amudeshwar H',
+          email: 'am2442@student.krct.ac.in',
+          class_id: 'demo-class-1',
+          class: {
+            id: 'demo-class-1',
+            code: 'IT',
+            name: 'Information Technology'
+          }
+        },
+        '2I2442': {
+          id: 'demo-student-2',
+          roll_number: '2I2442',
+          name: 'Test Student 2I',
+          email: '2i2442@student.krct.ac.in',
+          class_id: 'demo-class-2',
+          class: {
+            id: 'demo-class-2',
+            code: 'CSE-A',
+            name: 'Computer Science Engineering - Section A'
+          }
+        }
       };
 
+      const student = demoStudents[rollNumber.toUpperCase()];
+      
+      if (!student) {
+        throw new Error(`Student with roll number "${rollNumber}" not found. Available demo accounts: AM2442, 2I2442`);
+      }
+
+      console.log('Student login successful:', student);
+      
+      // Store in localStorage for persistence
+      localStorage.setItem('student_auth', JSON.stringify(student));
+      
       set({
         student,
         isAuthenticated: true,
@@ -92,7 +105,8 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
     }
   },
   
-  logout: async () => {
+  logout: () => {
+    localStorage.removeItem('student_auth');
     set({
       student: null,
       isAuthenticated: false,
@@ -100,13 +114,19 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
     });
   },
   
-  initAuth: async () => {
-    // Initialize with clean state
-    set({
-      student: null,
-      isAuthenticated: false,
-      isLoading: false,
-      error: null
-    });
+  initAuth: () => {
+    try {
+      const storedAuth = localStorage.getItem('student_auth');
+      if (storedAuth) {
+        const student = JSON.parse(storedAuth);
+        set({
+          student,
+          isAuthenticated: true
+        });
+      }
+    } catch (error) {
+      console.error('Error initializing student auth:', error);
+      localStorage.removeItem('student_auth');
+    }
   }
 }));
