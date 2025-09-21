@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Clock, User, BookOpen, Edit2 } from 'lucide-react';
+import { Calendar, Clock, User, BookOpen, Plus } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { supabase } from '../lib/supabase';
 
@@ -16,10 +16,19 @@ interface Period {
   };
 }
 
+interface Class {
+  id: string;
+  code: string;
+  name: string;
+}
+
 export default function DashboardPage() {
   const { faculty } = useAuthStore();
   const navigate = useNavigate();
   const [timetable, setTimetable] = useState<Period[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [selectedClass, setSelectedClass] = useState('');
+  const [isAddingPeriod, setIsAddingPeriod] = useState(false);
   const [currentDate, setCurrentDate] = useState('');
   const [currentTime, setCurrentTime] = useState('');
   const [selectedWeekday, setSelectedWeekday] = useState('');
@@ -36,6 +45,16 @@ export default function DashboardPage() {
       if (!faculty || !selectedWeekday) return;
 
       try {
+        // Fetch all classes
+        const { data: classesData } = await supabase
+          .from('classes')
+          .select('*')
+          .order('code');
+
+        if (classesData) {
+          setClasses(classesData);
+        }
+
         const { data, error } = await supabase
           .from('periods')
           .select(`
@@ -92,6 +111,61 @@ export default function DashboardPage() {
 
   const handlePeriodClick = (period: Period) => {
     navigate(`/attendance/${period.id}/${period.class.code}`);
+  };
+
+  const handleAddPeriod = async () => {
+    if (!faculty || !selectedClass || !selectedWeekday) return;
+    
+    setIsAddingPeriod(true);
+    
+    try {
+      const selectedClassData = classes.find(c => c.id === selectedClass);
+      if (!selectedClassData) return;
+      
+      const periodCount = timetable.length + 1;
+      const timeSlots = [
+        '8:45 AM - 9:45 AM',
+        '9:45 AM - 10:45 AM', 
+        '11:00 AM - 12:00 PM',
+        '1:00 PM - 2:00 PM',
+        '2:00 PM - 2:50 PM',
+        '3:05 PM - 4:00 PM',
+        '4:00 PM - 4:45 PM'
+      ];
+      
+      const { data, error } = await supabase
+        .from('periods')
+        .insert({
+          faculty_id: faculty.id,
+          class_id: selectedClass,
+          name: `Period ${periodCount}`,
+          time_slot: timeSlots[Math.min(periodCount - 1, timeSlots.length - 1)],
+          weekday: selectedWeekday
+        })
+        .select(`
+          id,
+          name,
+          time_slot,
+          weekday,
+          class:classes (
+            id,
+            code,
+            name
+          )
+        `)
+        .single();
+
+      if (error) throw error;
+      
+      if (data) {
+        setTimetable(prev => [...prev, data]);
+        setSelectedClass('');
+      }
+    } catch (error) {
+      console.error('Error adding period:', error);
+    } finally {
+      setIsAddingPeriod(false);
+    }
   };
 
   const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -156,13 +230,38 @@ export default function DashboardPage() {
               <option key={day} value={day}>{day}</option>
             ))}
           </select>
-          <button
-            onClick={() => navigate('/timetable/edit')}
-            className="btn btn-secondary flex items-center"
-          >
-            <Edit2 className="h-4 w-4 mr-2" />
-            Edit Timetable
-          </button>
+          <div className="flex items-center space-x-2">
+            <select
+              value={selectedClass}
+              onChange={(e) => setSelectedClass(e.target.value)}
+              className="form-input py-1 pl-3 pr-8"
+              disabled={isAddingPeriod}
+            >
+              <option value="">Select a class...</option>
+              {classes.map(cls => (
+                <option key={cls.id} value={cls.id}>
+                  {cls.name} ({cls.code})
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={handleAddPeriod}
+              disabled={!selectedClass || isAddingPeriod}
+              className="btn btn-primary flex items-center"
+            >
+              {isAddingPeriod ? (
+                <span className="flex items-center">
+                  <div className="animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                  Adding...
+                </span>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Period
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 

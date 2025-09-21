@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check, X, Save, Users, Clock, AlertCircle } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../stores/authStore';
 import { useAttendanceStore, Student, AttendanceStats } from '../stores/attendanceStore';
 import StudentAttendanceModal from '../components/StudentAttendanceModal';
@@ -35,6 +36,20 @@ export default function AttendancePage() {
     if (!faculty || !periodId || !classCode) return;
 
     const loadData = async () => {
+      // Ensure we're only working with this faculty's period
+      const { data: periodData, error: periodError } = await supabase
+        .from('periods')
+        .select('*')
+        .eq('id', periodId)
+        .eq('faculty_id', faculty.id)
+        .single();
+
+      if (periodError || !periodData) {
+        console.error('Period not found or not authorized:', periodError);
+        navigate('/dashboard');
+        return;
+      }
+
       const classId = await getClassId(classCode);
       if (!classId) {
         console.error('Class not found');
@@ -46,7 +61,7 @@ export default function AttendancePage() {
     };
 
     loadData();
-  }, [faculty, periodId, classCode, initializeAttendance, fetchStudentsByClass, getClassId]);
+  }, [faculty, periodId, classCode, initializeAttendance, fetchStudentsByClass, getClassId, navigate]);
 
   useEffect(() => {
     if (records) {
@@ -116,7 +131,12 @@ export default function AttendancePage() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-5xl">
+    <>
+      <div className="flex items-center text-warning-600">
+        <AlertCircle className="h-5 w-5 mr-2" />
+        <span>Attendance already submitted for today</span>
+      </div>
+      <div className="container mx-auto px-4 py-6 max-w-5xl">
       <div className="flex justify-between items-center mb-6">
         <button
           onClick={() => navigate('/dashboard')}
@@ -128,7 +148,7 @@ export default function AttendancePage() {
         {isSubmitted ? (
           <div className="flex items-center text-warning-600">
             <AlertCircle className="h-5 w-5 mr-2" />
-            <span>Attendance already submitted for this week</span>
+            <span>Attendance already submitted for today</span>
           </div>
         ) : (
           <button
@@ -163,6 +183,7 @@ export default function AttendancePage() {
             <div>
               <h1 className="text-xl font-semibold text-gray-900">Attendance Sheet</h1>
               <p className="text-sm text-gray-500">Class: {classCode}</p>
+              <p className="text-xs text-gray-400">Date: {new Date().toLocaleDateString()}</p>
             </div>
             <div className="flex space-x-4">
               <div className="flex items-center">
@@ -290,6 +311,7 @@ export default function AttendancePage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
