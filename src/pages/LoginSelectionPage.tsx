@@ -73,7 +73,7 @@ export default function LoginSelectionPage() {
   <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 max-w-md mx-auto">
     {/* Custom logo */}
     <img 
-      src="src/components/newpc.png" 
+      src="https://stackblitz.com/storage/blobs/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBCSlZwdmdFPSIsImV4cCI6bnVsbCwicHVyIjoiYmxvYl9pZCJ9fQ==--123d2bd2d4eac6413c633f85c49a90700885880f//new%20pc.png" 
       alt="Programming Club 24 Logo" 
       className="h-16 w-16 mx-auto mb-4 object-contain"
     />
