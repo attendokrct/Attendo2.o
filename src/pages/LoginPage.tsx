@@ -23,7 +23,7 @@ export default function LoginPage() {
     <div className="text-center">
       <div className="flex justify-center mb-4">
         <img
-  src="https://stackblitz.com/storage/blobs/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBd0VNekE9PSIsImV4cCI6bnVsbCwicHVyIjoiYmxvYl9pZCJ9fQ==--b6f84202e6b55e9d7df6e1aff46f2df993edcf97/300372602_367089768961179_2671218216233570040_n.jpg"
+  src="https://stackblitz.com/storage/blobs/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBOW9JekE9PSIsImV4cCI6bnVsbCwicHVyIjoiYmxvYl9pZCJ9fQ==--34b399fc84ba0b256150849d28e9f3b09a59edc3/300372602_367089768961179_2671218216233570040_n.jpg"
   alt="Attendo Logo"
   className="h-24 w-24 object-contain rounded-full shadow-md bg-white p-2"
 />

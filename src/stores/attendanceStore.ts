@@ -6,7 +6,6 @@ export interface Student {
   roll_number: string;
   name: string;
   class_id: string;
-  parent_phone?: string;
 }
 
 export interface AttendanceRecord {
@@ -37,7 +36,6 @@ interface AttendanceState {
   fetchStudentsByClass: (classCode: string) => Promise<Student[]>;
   getClassId: (classCode: string) => Promise<string | null>;
   checkSubmissionStatus: (periodId: string) => Promise<boolean>;
-  sendAbsentNotification: (studentName: string, periodName: string, parentPhone: string) => Promise<void>;
 }
 
 export const useAttendanceStore = create<AttendanceState>((set, get) => ({
@@ -47,29 +45,6 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
   error: null,
   stats: {},
   isSubmitted: false,
-
-  sendAbsentNotification: async (studentName: string, periodName: string, parentPhone: string) => {
-    try {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-whatsapp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-        },
-        body: JSON.stringify({
-          studentName,
-          periodName,
-          parentPhone
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to send WhatsApp notification');
-      }
-    } catch (error) {
-      console.error('Error sending WhatsApp notification:', error);
-    }
-  },
 
   getClassId: async (classCode: string) => {
     try {
@@ -114,9 +89,11 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
     try {
       const today = new Date().toISOString().split('T')[0];
       
+      // Check if attendance was already submitted this week
       const isSubmitted = await get().checkSubmissionStatus(periodId);
       set({ isSubmitted });
 
+      // Check existing records
       const { data: existingRecords } = await supabase
         .from('attendance_records')
         .select('*')
@@ -126,6 +103,7 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
       if (existingRecords && existingRecords.length > 0) {
         set({ records: existingRecords, currentRecord: existingRecords[0] });
       } else {
+        // Get students for this class
         const { data: students } = await supabase
           .from('students')
           .select('*')
@@ -157,33 +135,6 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
       record.student_id === studentId ? { ...record, status } : record
     );
     set({ records: updatedRecords });
-
-    // If student is marked as absent, send WhatsApp notification
-    if (status === 'absent') {
-      try {
-        const { data: student } = await supabase
-          .from('students')
-          .select('name, parent_phone')
-          .eq('id', studentId)
-          .single();
-
-        const { data: period } = await supabase
-          .from('periods')
-          .select('name')
-          .eq('id', records[0].period_id)
-          .single();
-
-        if (student?.parent_phone && period?.name) {
-          await get().sendAbsentNotification(
-            student.name,
-            period.name,
-            student.parent_phone
-          );
-        }
-      } catch (error) {
-        console.error('Error sending absent notification:', error);
-      }
-    }
   },
 
   submitAttendance: async () => {
