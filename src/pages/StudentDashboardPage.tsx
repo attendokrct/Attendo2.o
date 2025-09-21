@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Clock, User, BookOpen, TrendingUp, TrendingDown, Minus, GraduationCap, LogOut } from 'lucide-react';
+import { Calendar, Clock, User, BookOpen, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { useStudentAuthStore } from '../stores/studentAuthStore';
 import AttendanceCircle from '../components/AttendanceCircle';
 import { supabase } from '../lib/supabase';
@@ -74,7 +74,6 @@ export default function StudentDashboardPage() {
             *,
             periods!inner(
               name,
-              time_slot,
               faculty:faculty!inner(name)
             )
           `)
@@ -85,25 +84,18 @@ export default function StudentDashboardPage() {
         // Group by faculty (subject)
         const subjectMap = new Map<string, {
           faculty_name: string;
-          periods: Set<string>;
           records: any[];
         }>();
 
         attendanceData?.forEach(record => {
           const facultyName = record.periods.faculty.name;
-          const periodInfo = `${record.periods.name} (${record.periods.time_slot})`;
-          
           if (!subjectMap.has(facultyName)) {
             subjectMap.set(facultyName, {
               faculty_name: facultyName,
-              periods: new Set(),
               records: []
             });
           }
-          
-          const subjectData = subjectMap.get(facultyName)!;
-          subjectData.periods.add(periodInfo);
-          subjectData.records.push(record);
+          subjectMap.get(facultyName)!.records.push(record);
         });
 
         // Calculate subject-wise attendance
@@ -115,7 +107,7 @@ export default function StudentDashboardPage() {
           const percentage = total_classes > 0 ? ((present_count + on_duty_count) / total_classes) * 100 : 0;
 
           return {
-            subject_name: `Classes by ${facultyName}`,
+            subject_name: `Subject by ${facultyName}`,
             faculty_name: facultyName,
             total_classes,
             present_count,

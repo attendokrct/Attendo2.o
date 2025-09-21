@@ -1,17 +1,17 @@
 import { useState, FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { GraduationCap, Lock, ArrowLeft } from 'lucide-react';
+import { GraduationCap, Mail, Lock, ArrowLeft } from 'lucide-react';
 import { useStudentAuthStore } from '../stores/studentAuthStore';
 
 export default function StudentLoginPage() {
-  const [rollNumber, setRollNumber] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const { login, isLoading, error } = useStudentAuthStore();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    const success = await login(rollNumber, password);
+    const success = await login(email, password);
     if (success) {
       navigate('/student/dashboard');
     }
@@ -47,23 +47,23 @@ export default function StudentLoginPage() {
             )}
 
             <div>
-              <label htmlFor="rollNumber" className="form-label">
-                Roll Number
+              <label htmlFor="email" className="form-label">
+                Student Email
               </label>
               <div className="relative mt-1">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <GraduationCap className="h-5 w-5 text-gray-400" />
+                  <Mail className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
-                  id="rollNumber"
-                  name="rollNumber"
-                  type="text"
-                  autoComplete="username"
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
                   required
                   className="form-input pl-10"
-                  placeholder="CSE-A-001"
-                  value={rollNumber}
-                  onChange={(e) => setRollNumber(e.target.value.toUpperCase())}
+                  placeholder="your.rollnumber@student.krct.ac.in"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
             </div>
@@ -110,7 +110,7 @@ export default function StudentLoginPage() {
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
-              Use your roll number and the default password <strong>Student@123</strong> to access your attendance records
+              Use your student email and password to access your attendance records
             </p>
           </div>
         </div>

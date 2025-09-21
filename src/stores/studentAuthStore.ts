@@ -5,6 +5,7 @@ interface Student {
   id: string;
   roll_number: string;
   name: string;
+  email: string;
   class?: {
     id: string;
     code: string;
@@ -17,7 +18,7 @@ interface StudentAuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
-  login: (rollNumber: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   initAuth: () => Promise<void>;
 }
@@ -28,14 +29,15 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
   isLoading: false,
   error: null,
   
-  login: async (rollNumber: string, password: string) => {
+  login: async (email: string, password: string) => {
     set({ isLoading: true, error: null });
     
     try {
-      // Check if password matches the default password
-      if (password !== 'Student@123') {
-        throw new Error('Invalid password. Use Student@123');
-      }
+      // For demo purposes, we'll use a simple email/password check
+      // In production, you'd want proper authentication
+      
+      // Extract roll number from email (assuming format: rollnumber@student.krct.ac.in)
+      const rollNumber = email.split('@')[0].toUpperCase();
       
       // Find student by roll number
       const { data: studentData, error: studentError } = await supabase
@@ -52,13 +54,19 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
         .single();
 
       if (studentError || !studentData) {
-        throw new Error('Invalid roll number or student not found');
+        throw new Error('Invalid email or student not found');
+      }
+
+      // For demo, accept any password that's at least 6 characters
+      if (password.length < 6) {
+        throw new Error('Invalid password');
       }
 
       const student: Student = {
         id: studentData.id,
         roll_number: studentData.roll_number,
         name: studentData.name,
+        email: email,
         class: studentData.class
       };
 
