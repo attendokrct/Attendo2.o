@@ -73,16 +73,16 @@ export default function LoginSelectionPage() {
   <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 max-w-md mx-auto">
     {/* Custom logo */}
     <img 
-      src="https://stackblitz.com/storage/blobs/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBCSlZwdmdFPSIsImV4cCI6bnVsbCwicHVyIjoiYmxvYl9pZCJ9fQ==--123d2bd2d4eac6413c633f85c49a90700885880f//new%20pc.png" 
+      src="src/components/newpc.png" 
       alt="Programming Club 24 Logo" 
       className="h-16 w-16 mx-auto mb-4 object-contain"
     />
 
-    <h2 className="text-white text-lg font-semibold mb-4">Created By - Programming Club 24</h2>
+    <h2 className="text-white text-lg font-semibold mb-4">Programming Club 24</h2>
 
     <ul className="text-white/90 text-sm space-y-2">
       <li>
-        <span className="font-bold">Rohit SK CSE(AIML)</span> - President
+        <span className="font-bold">Rohit CSE(AIML)</span> - President
       </li>
       <li>
         <span className="font-bold">Harish K IT</span> - Media Head
