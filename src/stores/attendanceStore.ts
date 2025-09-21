@@ -36,7 +36,7 @@ interface AttendanceState {
   getStudentStats: (studentId: string, facultyId: string) => Promise<AttendanceStats>;
   fetchStudentsByClass: (classCode: string) => Promise<Student[]>;
   getClassId: (classCode: string) => Promise<string | null>;
-  checkDailySubmissionStatus: (periodId: string) => Promise<boolean>;
+  checkSubmissionStatus: (periodId: string) => Promise<boolean>;
   sendAbsentNotification: (studentName: string, periodName: string, parentPhone: string) => Promise<void>;
 }
 
@@ -86,7 +86,7 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
     }
   },
 
-  checkDailySubmissionStatus: async (periodId: string) => {
+  checkSubmissionStatus: async (periodId: string) => {
     try {
       const today = new Date().toISOString().split('T')[0];
       const { data } = await supabase
@@ -100,7 +100,7 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
       set({ isSubmitted });
       return isSubmitted;
     } catch (error) {
-      console.error('Error checking daily submission status:', error);
+      console.error('Error checking submission status:', error);
       return false;
     }
   },
@@ -110,8 +110,8 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
     try {
       const today = new Date().toISOString().split('T')[0];
       
-      // Check if attendance is already submitted for today only
-      const isSubmitted = await get().checkDailySubmissionStatus(periodId);
+      // Check if attendance is already submitted for today
+      const isSubmitted = await get().checkSubmissionStatus(periodId);
 
       if (isSubmitted) {
         set({ isSubmitted: true });
@@ -127,7 +127,7 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
         return;
       }
 
-      // Not submitted today, so we can take attendance
+      // Not submitted yet, so we can take attendance
       set({ isSubmitted: false });
 
       const { data: existingRecords } = await supabase
@@ -137,10 +137,10 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
         .eq('date', today);
 
       if (existingRecords && existingRecords.length > 0) {
-        // Records exist for today but not submitted yet (draft state)
+        // Records exist but not submitted yet (draft state)
         set({ records: existingRecords, currentRecord: existingRecords[0] });
       } else {
-        // Create new draft records for today only
+        // Create new draft records for today
         const { data: students } = await supabase
           .from('students')
           .select('*')
@@ -209,19 +209,19 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      // Insert/update attendance records for today
+      // Insert/update attendance records
       const { error } = await supabase
         .from('attendance_records')
         .upsert(records);
 
       if (error) throw error;
       
-      // Save to attendance history for permanent storage
+      // Also save to attendance history for permanent storage
       const { error: historyError } = await supabase
         .from('attendance_history')
         .upsert(records.map(record => ({
           ...record,
-          id: crypto.randomUUID()
+          id: crypto.randomUUID() // Generate new ID for history table
         })));
 
       if (historyError) {
@@ -240,7 +240,7 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
 
   getStudentStats: async (studentId: string, facultyId: string) => {
     try {
-      // Get all attendance records from both current and history tables
+      // Get stats from both current records and history
       const [currentRecords, historyRecords] = await Promise.all([
         supabase
           .from('attendance_records')
@@ -260,7 +260,7 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
           .eq('periods.faculty_id', facultyId)
       ]);
 
-      // Combine all records and remove duplicates by date and period
+      // Combine both datasets and remove duplicates by date and period
       const allRecords = [...(currentRecords.data || []), ...(historyRecords.data || [])];
       const uniqueRecords = allRecords.filter((record, index, self) => 
         index === self.findIndex(r => r.date === record.date && r.period_id === record.period_id)

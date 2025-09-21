@@ -168,7 +168,6 @@ export default function AttendancePage() {
             <div>
               <h1 className="text-xl font-semibold text-gray-900">Attendance Sheet</h1>
               <p className="text-sm text-gray-500">Class: {classCode}</p>
-              <p className="text-xs text-gray-400">Date: {new Date().toLocaleDateString()}</p>
             </div>
             <div className="flex space-x-4">
               <div className="flex items-center">

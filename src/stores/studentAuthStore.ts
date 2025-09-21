@@ -5,7 +5,6 @@ interface Student {
   id: string;
   roll_number: string;
   name: string;
-  email?: string;
   class?: {
     id: string;
     code: string;
@@ -33,11 +32,6 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
     set({ isLoading: true, error: null });
     
     try {
-      // Validate input
-      if (!rollNumber || !password) {
-        throw new Error('Please enter both roll number and password');
-      }
-
       // Find student by roll number
       const { data: studentData, error: studentError } = await supabase
         .from('students')
@@ -53,40 +47,32 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
         .single();
 
       if (studentError || !studentData) {
-        if (studentError?.code === 'PGRST116') {
-          throw new Error('Student not found. Please check your roll number.');
-        }
-        throw new Error('Error finding student. Please try again.');
+        throw new Error('Invalid roll number or student not found');
       }
 
       // Check if password matches the default password
       if (password !== 'Student@123') {
-        throw new Error('Invalid password. Please use: Student@123');
+        throw new Error('Invalid password. Use Student@123');
       }
 
       const student: Student = {
         id: studentData.id,
         roll_number: studentData.roll_number,
         name: studentData.name,
-        email: studentData.email,
         class: studentData.class
       };
 
       set({
         student,
         isAuthenticated: true,
-        isLoading: false,
-        error: null
+        isLoading: false
       });
       
       return true;
     } catch (error) {
-      console.error('Student login error:', error);
       set({
         error: error instanceof Error ? error.message : 'Failed to login',
-        isLoading: false,
-        isAuthenticated: false,
-        student: null
+        isLoading: false
       });
       return false;
     }
@@ -95,18 +81,12 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
   logout: async () => {
     set({
       student: null,
-      isAuthenticated: false,
-      error: null
+      isAuthenticated: false
     });
   },
   
   initAuth: async () => {
-    // Initialize with clean state
-    set({
-      student: null,
-      isAuthenticated: false,
-      isLoading: false,
-      error: null
-    });
+    // For student auth, we don't persist sessions in this demo
+    // In production, you'd want to implement proper session management
   }
 }));
