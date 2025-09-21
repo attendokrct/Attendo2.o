@@ -140,7 +140,7 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
         // Records exist for today but not submitted yet (draft state)
         set({ records: existingRecords, currentRecord: existingRecords[0] });
       } else {
-        // Create new draft records for today only for this specific period
+        // Create new draft records for today only
         const { data: students } = await supabase
           .from('students')
           .select('*')

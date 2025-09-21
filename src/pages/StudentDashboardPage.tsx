@@ -67,94 +67,68 @@ export default function StudentDashboardPage() {
       if (!student) return;
 
       try {
-        console.log('Student data:', student);
+        // Fetch all attendance records from both current and history tables
+        const [currentRecords, historyRecords] = await Promise.all([
+          supabase
+            .from('attendance_records')
+            .select(`
+              *,
+              periods!inner(
+                name,
+                time_slot,
+                faculty:faculty!inner(name)
+              )
+            `)
+            .eq('student_id', student.id),
+          supabase
+            .from('attendance_history')
+            .select(`
+              *,
+              periods!inner(
+                name,
+                time_slot,
+                faculty:faculty!inner(name)
+              )
+            `)
+            .eq('student_id', student.id)
+        ]);
 
-        // Fetch attendance records from current table with proper joins
-        const { data: currentRecords, error: currentError } = await supabase
-          .from('attendance_records')
-          .select(`
-            *,
-            periods(
-              name,
-              time_slot,
-              faculty(name)
-            )
-          `)
-          .eq('student_id', student.id);
+        if (currentRecords.error) throw currentRecords.error;
+        if (historyRecords.error) throw historyRecords.error;
 
-        console.log('Current records:', currentRecords, 'Error:', currentError);
-
-        // Fetch attendance records from history table with proper joins
-        const { data: historyRecords, error: historyError } = await supabase
-          .from('attendance_history')
-          .select(`
-            *,
-            periods(
-              name,
-              time_slot,
-              faculty(name)
-            )
-          `)
-          .eq('student_id', student.id);
-
-        console.log('History records:', historyRecords, 'Error:', historyError);
-
-        // Handle errors (ignore PGRST116 which means no records found)
-        if (currentError && currentError.code !== 'PGRST116') {
-          console.error('Error fetching current records:', currentError);
-          throw currentError;
-        }
-        if (historyError && historyError.code !== 'PGRST116') {
-          console.error('Error fetching history records:', historyError);
-          throw historyError;
-        }
-
-        // Combine both datasets, filter out null periods, and remove duplicates
-        const allRecords = [...(currentRecords || []), ...(historyRecords || [])];
-        const validRecords = allRecords.filter(record => record.periods && record.periods.faculty);
-        console.log('All records combined:', allRecords);
-        console.log('Valid records with periods:', validRecords);
-
-        const attendanceData = validRecords.filter((record, index, self) => 
+        // Combine both datasets and remove duplicates by date and period
+        const allRecords = [...(currentRecords.data || []), ...(historyRecords.data || [])];
+        const attendanceData = allRecords.filter((record, index, self) => 
           index === self.findIndex(r => r.date === record.date && r.period_id === record.period_id)
         );
 
-        console.log('Filtered attendance data:', attendanceData);
 
-        // Group by faculty and period (subject)
+        // Group by faculty (subject)
         const subjectMap = new Map<string, {
           faculty_name: string;
-          subject_name: string;
+          periods: Set<string>;
           records: any[];
         }>();
 
         attendanceData.forEach(record => {
-          if (!record.periods || !record.periods.faculty) {
-            console.warn('Skipping record with missing period/faculty data:', record);
-            return;
-          }
-          
           const facultyName = record.periods.faculty.name;
-          const periodName = record.periods.name || 'Unknown Period';
-          const timeSlot = record.periods.time_slot || '';
-          const subjectKey = `${facultyName}_${record.period_id}`;
+          const periodInfo = `${record.periods.name} (${record.periods.time_slot})`;
           
-          if (!subjectMap.has(subjectKey)) {
-            subjectMap.set(subjectKey, {
+          if (!subjectMap.has(facultyName)) {
+            subjectMap.set(facultyName, {
               faculty_name: facultyName,
-              subject_name: `${periodName}${timeSlot ? ` (${timeSlot})` : ''}`,
+              periods: new Set(),
               records: []
             });
           }
           
-          const subjectData = subjectMap.get(subjectKey)!;
+          const subjectData = subjectMap.get(facultyName)!;
+          subjectData.periods.add(periodInfo);
           subjectData.records.push(record);
         });
 
-        console.log('Subject map:', subjectMap);
-
-        // Calculate subject-wise attendance statistics
-        const subjectStats: SubjectAttendance[] = Array.from(subjectMap.entries()).map(([subjectKey, data]) => {
+        // Calculate subject-wise attendance
+        const subjectStats: SubjectAttendance[] = Array.from(subjectMap.entries()).map(([facultyName, data]) => {
           const total_classes = data.records.length;
           const present_count = data.records.filter(r => r.status === 'present').length;
           const absent_count = data.records.filter(r => r.status === 'absent').length;
@@ -162,8 +136,8 @@ export default function StudentDashboardPage() {
           const percentage = total_classes > 0 ? ((present_count + on_duty_count) / total_classes) * 100 : 0;
 
           return {
-            subject_name: data.subject_name,
-            faculty_name: data.faculty_name,
+            subject_name: `Classes by ${facultyName}`,
+            faculty_name: facultyName,
             total_classes,
             present_count,
             absent_count,
@@ -172,27 +146,22 @@ export default function StudentDashboardPage() {
           };
         });
 
-        console.log('Subject stats:', subjectStats);
-
         setSubjectAttendance(subjectStats);
 
-        // Calculate overall attendance statistics
+        // Calculate overall stats
         const totalClasses = attendanceData.length;
         const totalPresent = attendanceData.filter(r => r.status === 'present').length;
         const totalAbsent = attendanceData.filter(r => r.status === 'absent').length;
         const totalOnDuty = attendanceData.filter(r => r.status === 'on_duty').length;
         const overallPercentage = totalClasses > 0 ? ((totalPresent + totalOnDuty) / totalClasses) * 100 : 0;
 
-        const newOverallStats = {
+        setOverallStats({
           total_classes: totalClasses,
           present_count: totalPresent,
           absent_count: totalAbsent,
           on_duty_count: totalOnDuty,
           percentage: overallPercentage
-        };
-
-        console.log('Overall stats:', newOverallStats);
-        setOverallStats(newOverallStats);
+        });
 
       } catch (error) {
         console.error('Error fetching attendance data:', error);

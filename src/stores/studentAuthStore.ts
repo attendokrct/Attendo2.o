@@ -43,7 +43,7 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
         .from('students')
         .select(`
           *,
-          classes!inner (
+          class:classes (
             id,
             code,
             name
@@ -54,7 +54,7 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
 
       if (studentError || !studentData) {
         if (studentError?.code === 'PGRST116') {
-          throw new Error(`Student with roll number "${rollNumber}" not found. Please contact your administrator to add your record to the system.`);
+          throw new Error('Student not found. Please check your roll number.');
         }
         throw new Error('Error finding student. Please try again.');
       }
@@ -69,7 +69,7 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
         roll_number: studentData.roll_number,
         name: studentData.name,
         email: studentData.email,
-        class: studentData.classes
+        class: studentData.class
       };
 
       set({

@@ -63,7 +63,7 @@ export default function StudentLoginPage() {
                   className="form-input pl-10"
                   placeholder="2I2442"
                   value={rollNumber}
-                  onChange={(e) => setRollNumber(e.target.value.trim().toUpperCase())}
+                  onChange={(e) => setRollNumber(e.target.value.toUpperCase())}
                 />
               </div>
             </div>
@@ -110,10 +110,10 @@ export default function StudentLoginPage() {
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
-              Use your roll number and password <strong>Student@123</strong>
+              Use your roll number (e.g., CSE-A-001) and password <strong>Student@123</strong>
             </p>
             <p className="text-xs text-gray-500 mt-2">
-              If your roll number is not found, please contact your administrator to add your record to the system
+              If you're having trouble logging in, please contact your faculty
             </p>
           </div>
         </div>

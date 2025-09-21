@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check, X, Save, Users, Clock, AlertCircle } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../stores/authStore';
 import { useAttendanceStore, Student, AttendanceStats } from '../stores/attendanceStore';
 import StudentAttendanceModal from '../components/StudentAttendanceModal';
@@ -36,20 +35,6 @@ export default function AttendancePage() {
     if (!faculty || !periodId || !classCode) return;
 
     const loadData = async () => {
-      // Ensure we're only working with this faculty's period
-      const { data: periodData, error: periodError } = await supabase
-        .from('periods')
-        .select('*')
-        .eq('id', periodId)
-        .eq('faculty_id', faculty.id)
-        .single();
-
-      if (periodError || !periodData) {
-        console.error('Period not found or not authorized:', periodError);
-        navigate('/dashboard');
-        return;
-      }
-
       const classId = await getClassId(classCode);
       if (!classId) {
         console.error('Class not found');
@@ -61,7 +46,7 @@ export default function AttendancePage() {
     };
 
     loadData();
-  }, [faculty, periodId, classCode, initializeAttendance, fetchStudentsByClass, getClassId, navigate]);
+  }, [faculty, periodId, classCode, initializeAttendance, fetchStudentsByClass, getClassId]);
 
   useEffect(() => {
     if (records) {
