@@ -31,11 +31,11 @@ export default function LoginPage() {
       <h1 className="text-3xl font-bold text-white">Faculty Login</h1>
       <a
         className="mt-2 text-primary-100 hover:text-primary-200"
-        href="https://krct-pc.github.io/home/"
+        href="https://shorturl.at/HEbEg"
         target="_blank"
         rel="noopener noreferrer"
       >
-        Powered by <strong>PROGRAMMING C;;LUB</strong>
+        Powered by <strong>PROGRAMMING CLUB</strong>
       </a>
     </div>
 

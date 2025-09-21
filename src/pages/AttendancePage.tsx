@@ -116,12 +116,7 @@ export default function AttendancePage() {
   };
 
   return (
-    <>
-      <div className="flex items-center text-warning-600">
-        <AlertCircle className="h-5 w-5 mr-2" />
-        <span>Attendance already submitted for today</span>
-      </div>
-      <div className="container mx-auto px-4 py-6 max-w-5xl">
+    <div className="container mx-auto px-4 py-6 max-w-5xl">
       <div className="flex justify-between items-center mb-6">
         <button
           onClick={() => navigate('/dashboard')}
@@ -133,7 +128,7 @@ export default function AttendancePage() {
         {isSubmitted ? (
           <div className="flex items-center text-warning-600">
             <AlertCircle className="h-5 w-5 mr-2" />
-            <span>Attendance already submitted for today</span>
+            <span>Attendance already submitted for this week</span>
           </div>
         ) : (
           <button
@@ -295,7 +290,6 @@ export default function AttendancePage() {
           </div>
         </div>
       )}
-      </div>
-    </>
+    </div>
   );
 }

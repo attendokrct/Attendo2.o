@@ -6,7 +6,6 @@ export interface Student {
   roll_number: string;
   name: string;
   class_id: string;
-  parent_phone?: string;
 }
 
 export interface AttendanceRecord {
@@ -37,7 +36,6 @@ interface AttendanceState {
   fetchStudentsByClass: (classCode: string) => Promise<Student[]>;
   getClassId: (classCode: string) => Promise<string | null>;
   checkSubmissionStatus: (periodId: string) => Promise<boolean>;
-  sendAbsentNotification: (studentName: string, periodName: string, parentPhone: string) => Promise<void>;
 }
 
 export const useAttendanceStore = create<AttendanceState>((set, get) => ({
@@ -47,29 +45,6 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
   error: null,
   stats: {},
   isSubmitted: false,
-
-  sendAbsentNotification: async (studentName: string, periodName: string, parentPhone: string) => {
-    try {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-whatsapp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-        },
-        body: JSON.stringify({
-          studentName,
-          periodName,
-          parentPhone
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to send WhatsApp notification');
-      }
-    } catch (error) {
-      console.error('Error sending WhatsApp notification:', error);
-    }
-  },
 
   getClassId: async (classCode: string) => {
     try {
@@ -88,12 +63,16 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
 
   checkSubmissionStatus: async (periodId: string) => {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = new Date();
+      const weekStart = new Date(today);
+      weekStart.setDate(today.getDate() - today.getDay());
+      
       const { data } = await supabase
         .from('attendance_records')
-        .select('id')
+        .select('date')
         .eq('period_id', periodId)
-        .eq('date', today)
+        .gte('date', weekStart.toISOString().split('T')[0])
+        .lte('date', today.toISOString().split('T')[0])
         .limit(1);
 
       const isSubmitted = data && data.length > 0;
@@ -110,26 +89,11 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
     try {
       const today = new Date().toISOString().split('T')[0];
       
-      // Check if attendance is already submitted for today
+      // Check if attendance was already submitted this week
       const isSubmitted = await get().checkSubmissionStatus(periodId);
+      set({ isSubmitted });
 
-      if (isSubmitted) {
-        set({ isSubmitted: true });
-        const { data: existingRecords } = await supabase
-          .from('attendance_records')
-          .select('*')
-          .eq('period_id', periodId)
-          .eq('date', today);
-
-        if (existingRecords) {
-          set({ records: existingRecords });
-        }
-        return;
-      }
-
-      // Not submitted yet, so we can take attendance
-      set({ isSubmitted: false });
-
+      // Check existing records
       const { data: existingRecords } = await supabase
         .from('attendance_records')
         .select('*')
@@ -137,10 +101,9 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
         .eq('date', today);
 
       if (existingRecords && existingRecords.length > 0) {
-        // Records exist but not submitted yet (draft state)
         set({ records: existingRecords, currentRecord: existingRecords[0] });
       } else {
-        // Create new draft records for today
+        // Get students for this class
         const { data: students } = await supabase
           .from('students')
           .select('*')
@@ -148,7 +111,6 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
 
         if (students) {
           const newRecords = students.map(student => ({
-            id: crypto.randomUUID(),
             period_id: periodId,
             student_id: student.id,
             date: today,
@@ -173,33 +135,6 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
       record.student_id === studentId ? { ...record, status } : record
     );
     set({ records: updatedRecords });
-
-    // If student is marked as absent, send WhatsApp notification
-    if (status === 'absent') {
-      try {
-        const { data: student } = await supabase
-          .from('students')
-          .select('name, parent_phone')
-          .eq('id', studentId)
-          .single();
-
-        const { data: period } = await supabase
-          .from('periods')
-          .select('name')
-          .eq('id', records[0].period_id)
-          .single();
-
-        if (student?.parent_phone && period?.name) {
-          await get().sendAbsentNotification(
-            student.name,
-            period.name,
-            student.parent_phone
-          );
-        }
-      } catch (error) {
-        console.error('Error sending absent notification:', error);
-      }
-    }
   },
 
   submitAttendance: async () => {
@@ -209,25 +144,11 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      // Insert/update attendance records
       const { error } = await supabase
         .from('attendance_records')
         .upsert(records);
 
       if (error) throw error;
-      
-      // Also save to attendance history for permanent storage
-      const { error: historyError } = await supabase
-        .from('attendance_history')
-        .upsert(records.map(record => ({
-          ...record,
-          id: crypto.randomUUID() // Generate new ID for history table
-        })));
-
-      if (historyError) {
-        console.warn('Failed to save to attendance history:', historyError);
-      }
-      
       set({ isSubmitted: true });
       return true;
     } catch (error) {
@@ -240,36 +161,19 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
 
   getStudentStats: async (studentId: string, facultyId: string) => {
     try {
-      // Get stats from both current records and history
-      const [currentRecords, historyRecords] = await Promise.all([
-        supabase
-          .from('attendance_records')
-          .select(`
-            *,
-            periods!inner(*)
-          `)
-          .eq('student_id', studentId)
-          .eq('periods.faculty_id', facultyId),
-        supabase
-          .from('attendance_history')
-          .select(`
-            *,
-            periods!inner(*)
-          `)
-          .eq('student_id', studentId)
-          .eq('periods.faculty_id', facultyId)
-      ]);
+      const { data: records } = await supabase
+        .from('attendance_records')
+        .select(`
+          *,
+          periods!inner(*)
+        `)
+        .eq('student_id', studentId)
+        .eq('periods.faculty_id', facultyId);
 
-      // Combine both datasets and remove duplicates by date and period
-      const allRecords = [...(currentRecords.data || []), ...(historyRecords.data || [])];
-      const uniqueRecords = allRecords.filter((record, index, self) => 
-        index === self.findIndex(r => r.date === record.date && r.period_id === record.period_id)
-      );
+      if (!records) return { total_classes: 0, present_count: 0, percentage: 0 };
 
-      if (!uniqueRecords.length) return { total_classes: 0, present_count: 0, percentage: 0 };
-
-      const total_classes = uniqueRecords.length;
-      const present_count = uniqueRecords.filter(r => r.status === 'present' || r.status === 'on_duty').length;
+      const total_classes = records.length;
+      const present_count = records.filter(r => r.status === 'present' || r.status === 'on_duty').length;
       const percentage = total_classes > 0 ? (present_count / total_classes) * 100 : 0;
 
       const stats = { total_classes, present_count, percentage };
