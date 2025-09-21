@@ -43,7 +43,7 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
         .from('students')
         .select(`
           *,
-          classes!inner (
+          classes (
             id,
             code,
             name
