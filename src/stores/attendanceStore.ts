@@ -88,11 +88,16 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
 
   checkSubmissionStatus: async (periodId: string) => {
     try {
+      const today = new Date();
+      const weekStart = new Date(today);
+      weekStart.setDate(today.getDate() - today.getDay());
+      
       const { data } = await supabase
         .from('attendance_records')
         .select('date')
         .eq('period_id', periodId)
-        .eq('date', new Date().toISOString().split('T')[0])
+        .gte('date', weekStart.toISOString().split('T')[0])
+        .lte('date', today.toISOString().split('T')[0])
         .limit(1);
 
       const isSubmitted = data && data.length > 0;
