@@ -5,9 +5,12 @@ interface Student {
   id: string;
   roll_number: string;
   name: string;
-  email: string;
-  class_id: string;
-  parent_phone?: string;
+  email?: string;
+  class?: {
+    id: string;
+    code: string;
+    name: string;
+  };
 }
 
 interface StudentAuthState {
@@ -30,77 +33,80 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
     set({ isLoading: true, error: null });
     
     try {
-      // First, get student data by roll number
+      // Validate input
+      if (!rollNumber || !password) {
+        throw new Error('Please enter both roll number and password');
+      }
+
+      // Find student by roll number
       const { data: studentData, error: studentError } = await supabase
         .from('students')
-        .select('*')
+        .select(`
+          *,
+          classes!inner (
+            id,
+            code,
+            name
+          )
+        `)
         .eq('roll_number', rollNumber)
         .single();
 
-      if (studentError) throw new Error('Student not found');
-
-      // Use student email for authentication
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: studentData.email,
-        password
-      });
-
-      if (authError) throw authError;
-
-      if (authData.user) {
-        set({
-          student: studentData,
-          isAuthenticated: true,
-          isLoading: false
-        });
-        
-        return true;
+      if (studentError || !studentData) {
+        if (studentError?.code === 'PGRST116') {
+          throw new Error(`Student with roll number "${rollNumber}" not found. Please contact your administrator to add your record to the system.`);
+        }
+        throw new Error('Error finding student. Please try again.');
       }
+
+      // Check if password matches the default password
+      if (password !== 'Student@123') {
+        throw new Error('Invalid password. Please use: Student@123');
+      }
+
+      const student: Student = {
+        id: studentData.id,
+        roll_number: studentData.roll_number,
+        name: studentData.name,
+        email: studentData.email,
+        class: studentData.classes
+      };
+
+      set({
+        student,
+        isAuthenticated: true,
+        isLoading: false,
+        error: null
+      });
       
-      throw new Error('No user data returned');
+      return true;
     } catch (error) {
+      console.error('Student login error:', error);
       set({
         error: error instanceof Error ? error.message : 'Failed to login',
-        isLoading: false
+        isLoading: false,
+        isAuthenticated: false,
+        student: null
       });
       return false;
     }
   },
   
   logout: async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      
-      set({
-        student: null,
-        isAuthenticated: false
-      });
-    } catch (error) {
-      console.error('Error during logout:', error);
-    }
+    set({
+      student: null,
+      isAuthenticated: false,
+      error: null
+    });
   },
   
   initAuth: async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session?.user) {
-        const { data: studentData } = await supabase
-          .from('students')
-          .select('*')
-          .eq('email', session.user.email)
-          .single();
-
-        if (studentData) {
-          set({
-            student: studentData,
-            isAuthenticated: true
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error initializing student auth:', error);
-    }
+    // Initialize with clean state
+    set({
+      student: null,
+      isAuthenticated: false,
+      isLoading: false,
+      error: null
+    });
   }
 }));
