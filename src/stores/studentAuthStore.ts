@@ -37,7 +37,9 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
         .eq('roll_number', rollNumber)
         .single();
 
-      if (studentError) throw new Error('Student not found');
+      if (studentError || !studentData) {
+        throw new Error('Student not found with the provided roll number');
+      }
 
       // Use student email for authentication
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -97,9 +99,9 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
           .eq('email', session.user.email)
           .single();
 
-        if (studentError && studentError.code === 'PGRST116') {
-          // No student record found for this email - this is normal for faculty users
-          console.log('No student record found for authenticated user');
+        // Check if no student record found (normal for faculty users)
+        if (studentError?.code === 'PGRST116' || !studentData) {
+          // No student record found - this is expected for faculty users
           return;
         }
         
@@ -108,6 +110,7 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
           return;
         }
 
+        // Set student data if found
         if (studentData) {
           set({
             student: studentData,
