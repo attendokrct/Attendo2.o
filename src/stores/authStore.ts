@@ -41,9 +41,10 @@ export const useAuthStore = create<AuthState>((set) => ({
           .from('faculty')
           .select('*')
           .eq('id', authData.user.id)
-          .single();
+          .maybeSingle();
 
         if (facultyError) throw facultyError;
+        if (!facultyData) throw new Error('Faculty record not found');
 
         set({
           faculty: facultyData,
@@ -87,7 +88,7 @@ export const useAuthStore = create<AuthState>((set) => ({
           .from('faculty')
           .select('*')
           .eq('id', session.user.id)
-          .single();
+          .maybeSingle();
 
         if (facultyData) {
           set({
