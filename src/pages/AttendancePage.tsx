@@ -38,7 +38,7 @@ export default function AttendancePage() {
         .from('periods')
         .select('*')
         .eq('id', periodId)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       setPeriodInfo(data);
@@ -56,7 +56,7 @@ export default function AttendancePage() {
         .from('classes')
         .select('id')
         .eq('code', classCode)
-        .single();
+        .maybeSingle();
 
       if (classError) throw classError;
 
