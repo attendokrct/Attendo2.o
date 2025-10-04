@@ -35,7 +35,7 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
         .from('students')
         .select('*')
         .eq('roll_number', rollNumber)
-        .single();
+        .maybeSingle();
 
       if (studentError || !studentData) {
         throw new Error('Student not found with the provided roll number');
@@ -97,20 +97,13 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
           .from('students')
           .select('*')
           .eq('email', session.user.email)
-          .single();
+          .maybeSingle();
 
-        // Check if no student record found (normal for faculty users)
-        if (studentError?.code === 'PGRST116' || !studentData) {
-          // No student record found - this is expected for faculty users
-          return;
-        }
-        
         if (studentError) {
           console.error('Error fetching student data:', studentError);
           return;
         }
 
-        // Set student data if found
         if (studentData) {
           set({
             student: studentData,
