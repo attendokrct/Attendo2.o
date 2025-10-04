@@ -45,12 +45,7 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
         password
       });
 
-      if (authError) {
-        if (authError.message === 'Invalid login credentials') {
-          throw new Error('Invalid roll number or password. Please check your credentials.');
-        }
-        throw authError;
-      }
+      if (authError) throw authError;
 
       if (authData.user) {
         set({
@@ -91,22 +86,11 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session?.user) {
-        const { data: studentData, error: studentError } = await supabase
+        const { data: studentData } = await supabase
           .from('students')
           .select('*')
           .eq('email', session.user.email)
           .single();
-
-        if (studentError && studentError.code === 'PGRST116') {
-          // No student record found for this email - this is normal for faculty users
-          console.log('No student record found for authenticated user');
-          return;
-        }
-        
-        if (studentError) {
-          console.error('Error fetching student data:', studentError);
-          return;
-        }
 
         if (studentData) {
           set({
