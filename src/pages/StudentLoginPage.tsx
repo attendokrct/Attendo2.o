@@ -1,6 +1,6 @@
 import { useState, FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { GraduationCap, Lock, User } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { GraduationCap, Lock, ArrowLeft } from 'lucide-react';
 import { useStudentAuthStore } from '../stores/studentAuthStore';
 
 export default function StudentLoginPage() {
@@ -18,25 +18,24 @@ export default function StudentLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-800 to-green-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-success-800 to-success-900 flex items-center justify-center p-4">
       <div className="max-w-md w-full space-y-8 animate-fade-in">
         <div className="text-center">
+          <Link
+            to="/"
+            className="inline-flex items-center text-success-200 hover:text-success-100 mb-6 transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Login Selection
+          </Link>
+          
           <div className="flex justify-center mb-4">
-            <img
-              src="https://stackblitz.com/storage/blobs/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBd0VNekE9PSIsImV4cCI6bnVsbCwicHVyIjoiYmxvYl9pZCJ9fQ==--b6f84202e6b55e9d7df6e1aff46f2df993edcf97/300372602_367089768961179_2671218216233570040_n.jpg"
-              alt="Attendo Logo"
-              className="h-24 w-24 object-contain rounded-full shadow-md bg-white p-2"
-            />
+            <div className="bg-white p-4 rounded-full shadow-lg">
+              <GraduationCap className="h-12 w-12 text-success-600" />
+            </div>
           </div>
           <h1 className="text-3xl font-bold text-white">Student Login</h1>
-          <a
-            className="mt-2 text-green-100 hover:text-green-200"
-            href="https://krct-pc.github.io/home/"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Powered by <strong>PROGRAMMING CLUB</strong>
-          </a>
+          <p className="mt-2 text-success-100">Access your attendance dashboard</p>
         </div>
 
         <div className="bg-white shadow-xl rounded-xl p-8">
@@ -53,7 +52,7 @@ export default function StudentLoginPage() {
               </label>
               <div className="relative mt-1">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className="h-5 w-5 text-gray-400" />
+                  <GraduationCap className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
                   id="rollNumber"
@@ -62,9 +61,9 @@ export default function StudentLoginPage() {
                   autoComplete="username"
                   required
                   className="form-input pl-10"
-                  placeholder="Enter your roll number"
+                  placeholder="2I2442"
                   value={rollNumber}
-                  onChange={(e) => setRollNumber(e.target.value)}
+                  onChange={(e) => setRollNumber(e.target.value.trim().toUpperCase())}
                 />
               </div>
             </div>
@@ -94,7 +93,7 @@ export default function StudentLoginPage() {
             <div>
               <button
                 type="submit"
-                className="w-full btn bg-green-600 text-white hover:bg-green-700 focus:ring-green-500 py-3"
+                className="w-full btn bg-success-600 text-white hover:bg-success-700 py-3"
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -108,6 +107,15 @@ export default function StudentLoginPage() {
               </button>
             </div>
           </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600">
+              Use your roll number and password <strong>Student@123</strong>
+            </p>
+            <p className="text-xs text-gray-500 mt-2">
+              If your roll number is not found, please contact your administrator to add your record to the system
+            </p>
+          </div>
         </div>
       </div>
     </div>

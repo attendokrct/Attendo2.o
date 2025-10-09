@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Calendar, Clock, Users, BookOpen, TrendingUp } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Calendar, Clock, User, BookOpen, Plus } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { supabase } from '../lib/supabase';
 
@@ -10,285 +10,300 @@ interface Period {
   time_slot: string;
   weekday: string;
   class: {
+    id: string;
     code: string;
     name: string;
   };
 }
 
-interface AttendanceStats {
-  totalClasses: number;
-  totalStudents: number;
-  averageAttendance: number;
+interface Class {
+  id: string;
+  code: string;
+  name: string;
 }
 
 export default function DashboardPage() {
   const { faculty } = useAuthStore();
-  const [periods, setPeriods] = useState<Period[]>([]);
-  const [todayPeriods, setTodayPeriods] = useState<Period[]>([]);
-  const [stats, setStats] = useState<AttendanceStats>({
-    totalClasses: 0,
-    totalStudents: 0,
-    averageAttendance: 0
-  });
+  const navigate = useNavigate();
+  const [timetable, setTimetable] = useState<Period[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [selectedClass, setSelectedClass] = useState('');
+  const [isAddingPeriod, setIsAddingPeriod] = useState(false);
+  const [currentDate, setCurrentDate] = useState('');
+  const [currentTime, setCurrentTime] = useState('');
+  const [selectedWeekday, setSelectedWeekday] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (faculty) {
-      fetchPeriods();
-      fetchStats();
-    }
-  }, [faculty]);
+    const now = new Date();
+    const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    setSelectedWeekday(weekdays[now.getDay()]);
+  }, []);
 
-  const fetchPeriods = async () => {
-    if (!faculty) return;
+  useEffect(() => {
+    const fetchTimetable = async () => {
+      if (!faculty || !selectedWeekday) return;
 
+      try {
+        // Fetch all classes
+        const { data: classesData } = await supabase
+          .from('classes')
+          .select('*')
+          .order('code');
+
+        if (classesData) {
+          setClasses(classesData);
+        }
+
+        const { data, error } = await supabase
+          .from('periods')
+          .select(`
+            id,
+            name,
+            time_slot,
+            weekday,
+            class:classes (
+              id,
+              code,
+              name
+            )
+          `)
+          .eq('faculty_id', faculty.id)
+          .eq('weekday', selectedWeekday)
+          .order('time_slot');
+
+        if (error) throw error;
+        setTimetable(data || []);
+      } catch (error) {
+        console.error('Error fetching timetable:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchTimetable();
+  }, [faculty, selectedWeekday]);
+
+  useEffect(() => {
+    // Set current date
+    const now = new Date();
+    setCurrentDate(now.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }));
+
+    // Update time every minute
+    const updateTime = () => {
+      const time = new Date().toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      setCurrentTime(time);
+    };
+
+    updateTime();
+    const timeInterval = setInterval(updateTime, 60000);
+
+    return () => clearInterval(timeInterval);
+  }, []);
+
+  const handlePeriodClick = (period: Period) => {
+    navigate(`/attendance/${period.id}/${period.class.code}`);
+  };
+
+  const handleAddPeriod = async () => {
+    if (!faculty || !selectedClass || !selectedWeekday) return;
+    
+    setIsAddingPeriod(true);
+    
     try {
+      const selectedClassData = classes.find(c => c.id === selectedClass);
+      if (!selectedClassData) return;
+      
+      const periodCount = timetable.length + 1;
+      const timeSlots = [
+        '8:45 AM - 9:45 AM',
+        '9:45 AM - 10:45 AM', 
+        '11:00 AM - 12:00 PM',
+        '1:00 PM - 2:00 PM',
+        '2:00 PM - 2:50 PM',
+        '3:05 PM - 4:00 PM',
+        '4:00 PM - 4:45 PM'
+      ];
+      
       const { data, error } = await supabase
         .from('periods')
+        .insert({
+          faculty_id: faculty.id,
+          class_id: selectedClass,
+          name: `Period ${periodCount}`,
+          time_slot: timeSlots[Math.min(periodCount - 1, timeSlots.length - 1)],
+          weekday: selectedWeekday
+        })
         .select(`
           id,
           name,
           time_slot,
           weekday,
           class:classes (
+            id,
             code,
             name
           )
         `)
-        .eq('faculty_id', faculty.id)
-        .order('time_slot');
+        .single();
 
       if (error) throw error;
-
-      const allPeriods = data || [];
-      setPeriods(allPeriods);
-
-      // Filter today's periods
-      const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-      const todaysPeriods = allPeriods.filter(period => period.weekday === today);
-      setTodayPeriods(todaysPeriods);
-
+      
+      if (data) {
+        setTimetable(prev => [...prev, data]);
+        setSelectedClass('');
+      }
     } catch (error) {
-      console.error('Error fetching periods:', error);
+      console.error('Error adding period:', error);
     } finally {
-      setIsLoading(false);
+      setIsAddingPeriod(false);
     }
   };
 
-  const fetchStats = async () => {
-    if (!faculty) return;
+  const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-    try {
-      // Get total classes count
-      const { count: classCount } = await supabase
-        .from('periods')
-        .select('*', { count: 'exact', head: true })
-        .eq('faculty_id', faculty.id);
-
-      // Get total students across all classes
-      const { data: classIds } = await supabase
-        .from('periods')
-        .select('class_id')
-        .eq('faculty_id', faculty.id);
-
-      let totalStudents = 0;
-      if (classIds && classIds.length > 0) {
-        const uniqueClassIds = [...new Set(classIds.map(p => p.class_id))];
-        
-        for (const classId of uniqueClassIds) {
-          const { count } = await supabase
-            .from('students')
-            .select('*', { count: 'exact', head: true })
-            .eq('class_id', classId);
-          
-          totalStudents += count || 0;
-        }
-      }
-
-      // Calculate average attendance (simplified)
-      const { data: attendanceData } = await supabase
-        .from('attendance_records')
-        .select('status, period:periods!inner(faculty_id)')
-        .eq('period.faculty_id', faculty.id);
-
-      let averageAttendance = 0;
-      if (attendanceData && attendanceData.length > 0) {
-        const presentCount = attendanceData.filter(record => record.status === 'present').length;
-        averageAttendance = Math.round((presentCount / attendanceData.length) * 100);
-      }
-
-      setStats({
-        totalClasses: classCount || 0,
-        totalStudents,
-        averageAttendance
-      });
-
-    } catch (error) {
-      console.error('Error fetching stats:', error);
-    }
-  };
-
-  if (isLoading) {
+  if (!faculty) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-600"></div>
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Welcome Section */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Welcome back, {faculty?.name}!</h1>
-        <p className="text-gray-600 mt-2">{faculty?.designation} - {faculty?.department}</p>
-      </div>
-
-      {/* Stats Cards */}
+    <div className="container mx-auto px-4 py-8 max-w-5xl">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <div className="flex items-center">
-            <div className="p-3 rounded-full bg-primary-100">
-              <BookOpen className="h-6 w-6 text-primary-600" />
+        <div className="card p-6 animate-fade-in col-span-full md:col-span-2">
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold text-gray-900">{faculty.name}</h1>
+              <p className="text-lg text-gray-600">{faculty.designation}</p>
+              <p className="text-gray-500">{faculty.department}</p>
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Total Classes</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.totalClasses}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <div className="flex items-center">
-            <div className="p-3 rounded-full bg-green-100">
-              <Users className="h-6 w-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Total Students</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.totalStudents}</p>
+            <div className="bg-primary-100 p-3 rounded-full">
+              <User className="h-8 w-8 text-primary-600" />
             </div>
           </div>
         </div>
-
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <div className="flex items-center">
-            <div className="p-3 rounded-full bg-yellow-100">
-              <TrendingUp className="h-6 w-6 text-yellow-600" />
+        <div className="card p-6 animate-fade-in animate-delay-100 col-span-full md:col-span-1">
+          <div className="flex items-center space-x-4">
+            <div className="bg-primary-100 p-3 rounded-full">
+              <Calendar className="h-6 w-6 text-primary-600" />
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Avg. Attendance</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.averageAttendance}%</p>
+            <div>
+              <p className="text-sm text-gray-500">Today's Date</p>
+              <p className="text-lg font-medium text-gray-900">{currentDate}</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-4 mt-4">
+            <div className="bg-primary-100 p-3 rounded-full">
+              <Clock className="h-6 w-6 text-primary-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Current Time</p>
+              <p className="text-lg font-medium text-gray-900">{currentTime}</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Today's Schedule */}
-      <div className="bg-white rounded-lg shadow-sm border mb-8">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex items-center">
-            <Calendar className="h-5 w-5 text-gray-600 mr-2" />
-            <h2 className="text-lg font-semibold text-gray-900">Today's Schedule</h2>
-            <span className="ml-2 text-sm text-gray-500">
-              {new Date().toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-              })}
-            </span>
+      <div className="flex justify-between items-center mb-6">
+        <div className="flex items-center space-x-2">
+          <BookOpen className="h-5 w-5 text-primary-600" />
+          <h2 className="text-xl font-semibold">Timetable</h2>
+        </div>
+        <div className="flex items-center space-x-4">
+          <select
+            value={selectedWeekday}
+            onChange={(e) => setSelectedWeekday(e.target.value)}
+            className="form-input py-1 pl-3 pr-8"
+          >
+            {weekdays.map(day => (
+              <option key={day} value={day}>{day}</option>
+            ))}
+          </select>
+          <div className="flex items-center space-x-2">
+            <select
+              value={selectedClass}
+              onChange={(e) => setSelectedClass(e.target.value)}
+              className="form-input py-1 pl-3 pr-8"
+              disabled={isAddingPeriod}
+            >
+              <option value="">Select a class...</option>
+              {classes.map(cls => (
+                <option key={cls.id} value={cls.id}>
+                  {cls.name} ({cls.code})
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={handleAddPeriod}
+              disabled={!selectedClass || isAddingPeriod}
+              className="btn btn-primary flex items-center"
+            >
+              {isAddingPeriod ? (
+                <span className="flex items-center">
+                  <div className="animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                  Adding...
+                </span>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Period
+                </>
+              )}
+            </button>
           </div>
         </div>
-        
-        <div className="p-6">
-          {todayPeriods.length > 0 ? (
-            <div className="grid gap-4">
-              {todayPeriods.map((period) => (
-                <div key={period.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
-                  <div className="flex items-center">
-                    <div className="p-2 bg-primary-100 rounded-lg mr-4">
-                      <Clock className="h-5 w-5 text-primary-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-gray-900">{period.name}</h3>
-                      <p className="text-sm text-gray-600">{period.class.name} ({period.class.code})</p>
-                      <p className="text-sm text-gray-500">{period.time_slot}</p>
-                    </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center items-center h-48">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {timetable.map((period, index) => (
+            <div
+              key={period.id}
+              className="card hover:shadow-md transition-all cursor-pointer animate-slide-in"
+              style={{ animationDelay: `${index * 50}ms` }}
+              onClick={() => handlePeriodClick(period)}
+            >
+              <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                <h3 className="font-medium text-gray-800">{period.name}</h3>
+                <span className="text-xs bg-primary-100 text-primary-800 px-2 py-1 rounded-full">
+                  {period.time_slot}
+                </span>
+              </div>
+              <div className="p-5">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h4 className="text-lg font-medium text-gray-900">
+                      {period.class.name}
+                    </h4>
+                    <p className="text-sm text-gray-500">Class Code: {period.class.code}</p>
                   </div>
-                  <Link
-                    to={`/attendance/${period.id}/${period.class.code}`}
-                    className="btn btn-primary"
-                  >
-                    Take Attendance
-                  </Link>
                 </div>
-              ))}
+              </div>
             </div>
-          ) : (
-            <div className="text-center py-8">
-              <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">No classes scheduled for today</p>
-            </div>
-          )}
+          ))}
         </div>
-      </div>
+      )}
 
-      {/* All Periods */}
-      <div className="bg-white rounded-lg shadow-sm border">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">All Your Classes</h2>
+      {!isLoading && timetable.length === 0 && (
+        <div className="text-center py-8">
+          <p className="text-gray-500">No classes scheduled for {selectedWeekday}.</p>
         </div>
-        
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Period
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Class
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Day
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Time
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {periods.map((period) => (
-                <tr key={period.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {period.name}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {period.class.name} ({period.class.code})
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {period.weekday}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {period.time_slot}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <Link
-                      to={`/attendance/${period.id}/${period.class.code}`}
-                      className="text-primary-600 hover:text-primary-900"
-                    >
-                      Take Attendance
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
