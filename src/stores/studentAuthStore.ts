@@ -37,9 +37,7 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
         .eq('roll_number', rollNumber)
         .single();
 
-      if (studentError || !studentData) {
-        throw new Error('Student not found with the provided roll number');
-      }
+      if (studentError) throw new Error('Student not found');
 
       // Use student email for authentication
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -47,12 +45,7 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
         password
       });
 
-      if (authError) {
-        if (authError.message === 'Invalid login credentials') {
-          throw new Error('Invalid roll number or password. Please check your credentials.');
-        }
-        throw authError;
-      }
+      if (authError) throw authError;
 
       if (authData.user) {
         set({
@@ -93,24 +86,12 @@ export const useStudentAuthStore = create<StudentAuthState>((set) => ({
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session?.user) {
-        const { data: studentData, error: studentError } = await supabase
+        const { data: studentData } = await supabase
           .from('students')
           .select('*')
           .eq('email', session.user.email)
           .single();
 
-        // Check if no student record found (normal for faculty users)
-        if (studentError?.code === 'PGRST116' || !studentData) {
-          // No student record found - this is expected for faculty users
-          return;
-        }
-        
-        if (studentError) {
-          console.error('Error fetching student data:', studentError);
-          return;
-        }
-
-        // Set student data if found
         if (studentData) {
           set({
             student: studentData,
